@@ -11,6 +11,9 @@ importers:
       '@base-ui/react':
         specifier: ^1.5.0
         version: 1.5.0(@date-fns/tz@1.4.1)(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@paystack/inline-js':
+        specifier: ^2.25.0
+        version: 2.25.0
       '@supabase/supabase-js':
         specifier: ^2.116.0
         version: 2.116.0
@@ -536,6 +539,10 @@ packages:
   '@nodelib/fs.walk@1.2.8':
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
+
+  '@paystack/inline-js@2.25.0':
+    resolution: {integrity: sha512-0fiUfOmC5BB4QRS0blKULN00JSPwdhhvpWN+HwCdHnUi0cxRj21WhvcMoao+6FGtHQmiz5+SsrxutBcM9vSlmA==}
+    engines: {node: '>= 22.0.0'}
 
   '@sec-ant/readable-stream@0.4.1':
     resolution: {integrity: sha512-831qok9r2t8AlxLko40y2ebgSDhenenCatLVeW/uBtnHPyhHOvG0C7TvfgecV+wHzIm5KUICgzmVpWS+IMEAeg==}
@@ -2353,6 +2360,8 @@ snapshots:
     dependencies:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
+
+  '@paystack/inline-js@2.25.0': {}
 
   '@sec-ant/readable-stream@0.4.1': {}
 

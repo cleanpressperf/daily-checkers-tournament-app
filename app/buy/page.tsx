@@ -1,27 +1,12 @@
 'use client'
 import Link from 'next/link'
-import Script from 'next/script'
 import { ArrowLeft, Check, CircleDollarSign, LockKeyhole } from 'lucide-react'
 import { Nav } from '../page'
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
-const packs=[50,300,500,1000,3000]
-declare global { interface Window { PaystackPop?: any } }
+const packs=[{coins:50,naira:50},{coins:300,naira:300},{coins:500,naira:500},{coins:1000,naira:1000},{coins:3000,naira:3000}]
 export default function BuyPage(){
-  const [selected,setSelected]=useState(500)
-  const [message,setMessage]=useState('')
-  async function pay(){
-    setMessage('Opening secure checkout...')
-    if (!window.PaystackPop) { setMessage('Paystack is still loading. Try again.'); return }
-    const paystackKey = process.env.NEXT_PUBLIC_PAYSTACK_KEY
-    if (!paystackKey) { setMessage('Payments are not configured yet.'); return }
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user?.email) { setMessage('Sign in with an email before buying coins.'); return }
-    const handler = window.PaystackPop.setup({ key: paystackKey, email: user.email, amount: selected * 100, currency: 'NGN', callback: async (response: any) => {
-      const { error } = await supabase.rpc('credit_wallet', { p_coins: selected, p_naira: selected, p_paystack_ref: response.reference, p_email: user.email })
-      setMessage(error ? 'Payment received, but wallet credit needs support review.' : `${selected.toLocaleString()} coins added to your wallet.`)
-    }, onClose: () => setMessage('Checkout cancelled.') })
-    handler.openIframe()
-  }
-  return <main className="min-h-screen bg-black text-white"><Script src="https://js.paystack.co/v2/inline.js" strategy="afterInteractive"/><Nav/><div className="mx-auto max-w-5xl px-5 pb-24 pt-12 lg:px-10"><Link href="/" className="mb-10 inline-flex items-center gap-2 text-sm text-zinc-500"><ArrowLeft className="size-4"/>Back home</Link><div className="text-center"><p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Your wallet · live balance</p><h1 className="mt-3 text-5xl font-semibold tracking-[-0.05em]">More coins. More tables.</h1><p className="mx-auto mt-4 max-w-md text-zinc-400">1 coin = ₦1. Choose a pack and get back to the board.</p></div><div className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{packs.map(pack=><button key={pack} onClick={()=>setSelected(pack)} className={`relative rounded-2xl border p-5 text-left ${selected===pack?'border-[#ffd700] bg-white text-black':'border-white/10 bg-zinc-950'}`}>{selected===pack&&<span className="absolute right-3 top-3 grid size-5 place-items-center rounded-full bg-[#ffd700]"><Check className="size-3"/></span>}<CircleDollarSign className={`size-6 ${selected===pack?'text-[#bb9200]':'text-[#ffd700]'}`}/><strong className="mt-8 block text-2xl">{pack.toLocaleString()}</strong><span className={selected===pack?'text-black/50':'text-zinc-500'}>₦{pack.toLocaleString()}</span></button>)}</div>{message&&<p className="mx-auto mt-6 max-w-md rounded-xl border border-white/15 p-4 text-center text-sm text-zinc-300">{message}</p>}<div className="mx-auto mt-8 max-w-md"><button onClick={pay} className="w-full rounded-xl bg-white py-4 font-semibold text-black">Buy {selected.toLocaleString()} coins</button><p className="mt-4 flex items-center justify-center gap-2 text-center text-xs text-zinc-500"><LockKeyhole className="size-3"/>Secure payment powered by Paystack</p></div></div></main>
+ const [selected,setSelected]=useState(packs[2]); const [message,setMessage]=useState('')
+ async function handleBuy(pack: typeof packs[number]) { const {data:{user}}=await supabase.auth.getUser(); const email=user?.email||'guest@boardroom.com'; const key=process.env.NEXT_PUBLIC_PAYSTACK_KEY; if(!key){setMessage('Checkout is temporarily unavailable.');return} const { default: PaystackPop } = await import('@paystack/inline-js'); const paystack=new PaystackPop(); paystack.newTransaction({key,email,amount:pack.naira*100,currency:'NGN',onSuccess:async transaction=>{if(!user){setMessage('Sign in is required to save purchased coins.');return} const {error}=await supabase.rpc('credit_wallet',{p_coins:pack.coins,p_naira:pack.naira,p_paystack_ref:transaction.reference,p_email:email}); setMessage(error?'Payment received, but wallet credit needs support review.':`${pack.coins.toLocaleString()} coins added!`); if(!error) window.location.reload()},onCancel:()=>setMessage('Payment cancelled')}) }
+ return <main className="min-h-screen bg-black text-white"><Nav/><div className="mx-auto max-w-5xl px-5 pb-24 pt-12 lg:px-10"><Link href="/" className="mb-10 inline-flex items-center gap-2 text-sm text-zinc-500"><ArrowLeft className="size-4"/>Back home</Link><div className="text-center"><p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Your wallet · live balance</p><h1 className="mt-3 text-5xl font-semibold tracking-[-0.05em]">More coins. More tables.</h1><p className="mx-auto mt-4 max-w-md text-zinc-400">1 coin = ₦1. Choose a pack and get back to the board.</p></div><div className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{packs.map(pack=><button key={pack.coins} onClick={()=>setSelected(pack)} className={`relative rounded-2xl border p-5 text-left ${selected.coins===pack.coins?'border-[#ffd700] bg-white text-black':'border-white/10 bg-zinc-950'}`}>{selected.coins===pack.coins&&<span className="absolute right-3 top-3 grid size-5 place-items-center rounded-full bg-[#ffd700]"><Check className="size-3"/></span>}<CircleDollarSign className="size-6 text-[#ffd700]"/><strong className="mt-8 block text-2xl">{pack.coins.toLocaleString()}</strong><span className={selected.coins===pack.coins?'text-black/50':'text-zinc-500'}>₦{pack.naira.toLocaleString()}</span></button>)}</div>{message&&<p className="mx-auto mt-6 max-w-md rounded-xl border border-white/15 p-4 text-center text-sm text-zinc-300">{message}</p>}<div className="mx-auto mt-8 max-w-md"><button onClick={()=>handleBuy(selected)} className="w-full rounded-xl bg-black py-4 font-semibold text-white ring-1 ring-white/20">Buy {selected.coins.toLocaleString()} coins</button><p className="mt-4 flex items-center justify-center gap-2 text-center text-xs text-zinc-500"><LockKeyhole className="size-3"/>Secure payment powered by Paystack</p></div></div></main>
 }
