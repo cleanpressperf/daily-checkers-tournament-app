@@ -25,7 +25,24 @@ function Nav() {
   </header>
 }
 
-function TournamentCard({ t }: { t: typeof tournaments[number] }) {
+function TournamentCard({ t }: { t: typeof tournaments[number] & { status?: string, winner_name?: string, finished_at?: string } }) {
+  // WINNER DISPLAY 7:40PM - 8PM
+  if ((t as any).status === 'finished' && (t as any).winner_name) {
+    const hour = new Date().getHours()
+    if (hour >= 19 && hour < 20) {
+      return (
+        <article className={`${t.tone} rounded-[24px] p-5 text-black`}>
+          <div className="text-center py-4">
+            <h1 className="text-sm font-bold uppercase tracking-widest">🏆 Today's Winner</h1>
+            <h2 className="text-3xl font-black mt-3">{(t as any).winner_name}</h2>
+            <p className="text-xs mt-2 opacity-60">Ended at {(t as any).finished_at}</p>
+            <p className="text-xs mt-1 font-semibold">Next tournament tomorrow 7pm WAT</p>
+          </div>
+        </article>
+      )
+    }
+  }
+
   function handleWatch(e: any) {
     e.preventDefault();
     const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Lagos', hour12: false, hour: '2-digit' }).formatToParts(new Date());
