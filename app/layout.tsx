@@ -3,8 +3,8 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
+  title: 'Boardroom — Daily Checkers Cash Tournaments',
+  description: 'Play daily International Draughts tournaments for cash prizes. Skill only.',
   generator: 'v0.app',
   icons: {
     icon: [
