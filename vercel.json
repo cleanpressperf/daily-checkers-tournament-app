@@ -2,23 +2,15 @@
   "crons": [
     {
       "path": "/api/cron/fill-brackets",
-      "schedule": "30 17 * * *"
+      "schedule": "55 18 * * *"
     },
     {
       "path": "/api/cron/fill-brackets",
-      "schedule": "35 17 * * *"
-    },
-    {
-      "path": "/api/cron/fill-brackets",
-      "schedule": "40 17 * * *"
+      "schedule": "58 18 * * *"
     },
     {
       "path": "/api/cron/auto-play",
-      "schedule": "* 18 * * *"
-    },
-    {
-      "path": "/api/cron/auto-play",
-      "schedule": "*/2 19 * * *"
+      "schedule": "* 19 * * *"
     }
   ]
 }
