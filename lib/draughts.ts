@@ -16,7 +16,7 @@ export function initialBoard(): Piece[]{
   return ps
 }
 
-function recCaptures(cur:Piece[], fromIdx:number, taken:{r:number,c:number}[]): {to:number, taken:{r:number,c:number}[]}[]{
+function recCaptures(cur:Piece[], fromIdx:number, taken:{r:number,c:number}[]): {to:number,taken:{r:number,c:number}[]}[]{
   const p=cur[fromIdx]; if(!p) return []
   const out:{to:number,taken:{r:number,c:number}[]}[]=[]
   const takenSet=new Set(taken.map(t=>`${t.r},${t.c}`))
@@ -87,5 +87,78 @@ export function getLegalMoves(b:Piece[],pl:Side,from?:number){
   return b.flatMap((_,i)=> b[i].side===pl? simple(b,i):[])
 }
 export function applyMove(b:Piece[],m:Move){ const p=b[m.from]; if(!p) return b; const nb=b.filter((_,i)=> i!==m.from &&!m.captures.includes(i)); const r=Math.floor(m.to/10),c=m.to%10; nb.push({...p,row:r,col:c,king:p.king||(p.side==='white'?r===9:r===0)}); return nb }
-export function botMove(b:Piece[],lvl:string){ const ms=getLegalMoves(b,'black'); if(!ms.length) return null; if(lvl==='Easy') return ms[Math.floor(Math.random()*ms.length)]; if(lvl==='Medium') return ms.sort((a,b)=>b.captures.length-a.captures.length)[0]; const ev=(x:Piece[])=>x.reduce((s,p)=>s+(p.side==='black'?100+(p.king?50:0):-100-(p.king?50:0)),0); return ms.sort((a,b)=>ev(applyMove(b,b))-ev(applyMove(b,a)))[0] }
-export function moveLabel(m:Move){ return m.captures.length?`Capture ${m.captures.length}`:'Your turn' }
+
+// --- FAST & STRONG AI ---
+function evaluate(b:Piece[]){
+  let s=0
+  for(const p of b){
+    const centerBonus = 2 - Math.abs(p.col-4.5)/4.5
+    const advance = p.side==='black'? (9-p.row) : p.row
+    const val = (p.king? 150 : 100) + advance*2 + centerBonus*5
+    s += p.side==='black'? val : -val
+    // king safety & chain threat
+    if(p.king) s+= p.side==='black'? 10: -10
+  }
+  // mobility
+  s+= getLegalMoves(b,'black').length*2
+  s-= getLegalMoves(b,'white').length*2
+  return s
+}
+
+function minimax(b:Piece[], depth:number, alpha:number, beta:number, maximizing:boolean, startTime:number, timeLimit:number): {score:number, move?:Move}{
+  if(Date.now()-startTime>timeLimit) return {score:evaluate(b)}
+  const player:Side=maximizing?'black':'white'
+  const moves=getLegalMoves(b,player)
+  if(depth===0||moves.length===0) return {score:evaluate(b)}
+  // order captures first
+  moves.sort((a,b)=>b.captures.length-a.captures.length)
+  let bestMove:Move|undefined
+  if(maximizing){
+    let maxEval=-Infinity
+    for(const m of moves){
+      const nb=applyMove(b,m)
+      const ev=minimax(nb,depth-1,alpha,beta,false,startTime,timeLimit).score
+      if(ev>maxEval){ maxEval=ev; bestMove=m }
+      alpha=Math.max(alpha,ev); if(beta<=alpha) break
+      if(Date.now()-startTime>timeLimit) break
+    }
+    return {score:maxEval, move:bestMove}
+  }else{
+    let minEval=Infinity
+    for(const m of moves){
+      const nb=applyMove(b,m)
+      const ev=minimax(nb,depth-1,alpha,beta,true,startTime,timeLimit).score
+      if(ev<minEval){ minEval=ev; bestMove=m }
+      beta=Math.min(beta,ev); if(beta<=alpha) break
+      if(Date.now()-startTime>timeLimit) break
+    }
+    return {score:minEval, move:bestMove}
+  }
+}
+
+export function botMove(b:Piece[], lvl:string):Move|null{
+  const moves=getLegalMoves(b,'black'); if(!moves.length) return null
+  if(lvl==='Easy'){
+    // Easy = 30% blunder
+    if(Math.random()<0.3) return moves[Math.floor(Math.random()*moves.length)]
+    return moves.sort((a,b)=>b.captures.length-a.captures.length)[0]
+  }
+  if(lvl==='Medium'){
+    const start=Date.now()
+    const res=minimax(b,3,-Infinity,Infinity,true,start,2500)
+    return res.move||moves[0]
+  }
+  // Hard = almost unbeatable, depth 4-5 with time limit 25s max
+  const start=Date.now()
+  // iterative deepening
+  let best = moves[0]
+  for(let d=3; d<=5; d++){
+    const limit = d===3? 3000 : d===4? 12000 : 24000
+    const res=minimax(b,d,-Infinity,Infinity,true,start,limit)
+    if(res.move) best=res.move
+    if(Date.now()-start>20000) break
+  }
+  return best
+}
+
+export function moveLabel(m:Move){ return m.captures.length?`Captured ${m.captures.length}`:'Your turn' }
