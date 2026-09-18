@@ -30,8 +30,19 @@ function TournamentCard({ t }: { t: typeof tournaments[number] }) {
 }
 
 export default function Page() {
-  const [seconds, setSeconds] = useState(5 * 3600 + 23 * 60 + 11)
-  useEffect(() => { const timer = setInterval(() => setSeconds(s => s > 0 ? s - 1 : 0), 1000); return () => clearInterval(timer) }, [])
+  const [seconds, setSeconds] = useState(0)
+  useEffect(() => {
+    const getSecondsToLagosSeven = () => {
+      const now = new Date()
+      const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Lagos', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(now)
+      const current = Number(parts.find(part => part.type === 'hour')?.value || 0) * 3600 + Number(parts.find(part => part.type === 'minute')?.value || 0) * 60 + Number(parts.find(part => part.type === 'second')?.value || 0)
+      return (19 * 3600 - current + 24 * 3600) % (24 * 3600)
+    }
+    const update = () => setSeconds(getSecondsToLagosSeven())
+    update()
+    const timer = setInterval(update, 1000)
+    return () => clearInterval(timer)
+  }, [])
   const hours = String(Math.floor(seconds / 3600)).padStart(2, '0'); const mins = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0'); const secs = String(seconds % 60).padStart(2, '0')
   return <main className="min-h-screen bg-black text-white"><Nav /><section className="mx-auto max-w-7xl px-5 pb-20 pt-16 lg:px-10 lg:pt-24"><div className="grid gap-16 lg:grid-cols-[1.1fr_.9fr] lg:items-end"><div><div className="mb-7 inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1.5 text-xs text-zinc-300"><span className="size-1.5 rounded-full bg-[#ffd700]" />Next tournament starts at 7:00 PM WAT</div><h1 className="max-w-3xl text-5xl font-semibold leading-[.95] tracking-[-0.06em] sm:text-7xl">The board is set.<br /><span className="text-zinc-500">Make your move.</span></h1><p className="mt-7 max-w-xl text-lg leading-8 text-zinc-400">Daily cash tournaments for players who know the difference between luck and skill.</p><div className="mt-9 flex flex-wrap gap-3"><Link href="/tournaments" className="rounded-full bg-white px-6 py-3.5 text-sm font-semibold text-black">Enter a tournament <ArrowRight className="ml-2 inline size-4" /></Link><Link href="/practice" className="rounded-full border border-white/20 px-6 py-3.5 text-sm font-semibold">Practice free</Link></div></div><div className="rounded-[28px] border border-white/10 bg-zinc-950 p-6"><div className="flex items-center justify-between text-sm text-zinc-400"><span>Next tournament in</span><Clock3 className="size-4" /></div><div className="mt-5 text-6xl font-medium tracking-[-0.06em] tabular-nums">{hours}:{mins}:{secs}</div><div className="mt-5 flex items-center justify-between border-t border-white/10 pt-4 text-xs text-zinc-500"><span>Every day · 7:00 PM WAT</span><span className="text-white">3 prizes live</span></div></div></div></section><section className="mx-auto max-w-7xl px-5 pb-24 lg:px-10"><div className="mb-6 flex items-end justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">Tonight&apos;s games</p><h2 className="mt-2 text-3xl font-semibold tracking-tight">Choose your table</h2></div><Link href="/tournaments" className="hidden items-center gap-2 text-sm text-zinc-400 md:flex">View all <ArrowRight className="size-4" /></Link></div><div className="grid gap-4 md:grid-cols-3">{tournaments.map(t => <TournamentCard key={t.name} t={t} />)}</div></section><section className="border-t border-white/10"><div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 md:grid-cols-3 lg:px-10"><div><Sparkles className="size-5 text-[#ffd700]" /><h3 className="mt-4 text-xl font-semibold">Skill only</h3><p className="mt-2 text-sm leading-6 text-zinc-500">Compulsory captures. Flying kings. No coin flips, no shortcuts.</p></div><div><Shield className="size-5 text-[#ffd700]" /><h3 className="mt-4 text-xl font-semibold">Fair by design</h3><p className="mt-2 text-sm leading-6 text-zinc-500">Independent clocks and strict rounds keep every match moving.</p></div><div><Play className="size-5 text-[#ffd700]" /><h3 className="mt-4 text-xl font-semibold">Play for free</h3><p className="mt-2 text-sm leading-6 text-zinc-500">Warm up against three levels of bot in unlimited practice mode.</p></div></div></section></main>
 }
