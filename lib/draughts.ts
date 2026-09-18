@@ -2,108 +2,117 @@ export type Side = 'black' | 'white'
 export type Piece = { row: number; col: number; side: Side; king: boolean }
 export type Move = { from: number; to: number; captures: number[] }
 
-const playable = (row: number, col: number) => row >= 0 && row < 10 && col >= 0 && col < 10 && (row + col) % 2 === 1
-export const indexAt = (board: Piece[], r: number, c: number) => board.findIndex(p => p.row === r && p.col === c)
-const directions = [[1,1],[1,-1],[-1,1],[-1,-1]] as const
+const playable = (r:number,c:number)=> r>=0 && r<10 && c>=0 && c<10 && (r+c)%2===1
+export const indexAt = (b:Piece[],r:number,c:number)=> b.findIndex(p=>p.row===r && p.col===c)
+const dirs = [[1,1],[1,-1],[-1,1],[-1,-1]] as const
 
-export function initialBoard(): Piece[] {
-  const pieces: Piece[] = []
-  for (let row = 0; row < 10; row++) for (let col = 0; col < 10; col++) {
-    if (!playable(row, col)) continue
-    if (row < 4) pieces.push({ row, col, side: 'white', king: false })
-    if (row > 5) pieces.push({ row, col, side: 'black', king: false })
+export function initialBoard(): Piece[]{
+  const ps:Piece[]=[]
+  for(let r=0;r<10;r++) for(let c=0;c<10;c++){
+    if(!playable(r,c)) continue
+    if(r<4) ps.push({row:r,col:c,side:'white',king:false})
+    if(r>5) ps.push({row:r,col:c,side:'black',king:false})
   }
-  return pieces
+  return ps
 }
 
-function capturesFor(board: Piece[], from: number): Move[] {
-  const piece = board[from]
-  if (!piece) return []
-  const moves: Move[] = []
-  for (const [dr, dc] of directions) {
-    let row = piece.row + dr
-    let col = piece.col + dc
-    let enemy = -1
-    while (playable(row, col)) {
-      const occupied = indexAt(board, row, col)
-      if (occupied >= 0) {
-        if (board[occupied].side === piece.side || enemy >= 0) break
-        enemy = occupied
-      } else if (enemy >= 0) {
-        moves.push({ from: from, to: row * 10 + col, captures: [enemy] })
-        if (!piece.king) break
+function getCaptureSequences(board:Piece[], fromIdx:number, captured:number[]): Move[]{
+  const piece=board[fromIdx]; if(!piece) return []
+  const res:Move[]=[]
+  for(const [dr,dc] of dirs){
+    if(!piece.king){
+      const er=piece.row+dr, ec=piece.col+dc
+      const lr=piece.row+2*dr, lc=piece.col+2*dc
+      if(!playable(er,ec)||!playable(lr,lc)) continue
+      const eIdx=indexAt(board,er,ec)
+      if(eIdx<0||board[eIdx].side===piece.side||captured.includes(eIdx)) continue
+      if(indexAt(board,lr,lc)>=0) continue
+      // simulate
+      const nextBoard=board.filter((_,i)=>i!==fromIdx && i!==eIdx)
+      nextBoard.push({...piece,row:lr,col:lc})
+      const newFrom=indexAt(nextBoard,lr,lc)
+      const further=getCaptureSequences(nextBoard,newFrom,[...captured,eIdx])
+      if(further.length){
+        for(const f of further) res.push({from:fromIdx,to:f.to,captures:[eIdx,...f.captures]})
+      }else{
+        res.push({from:fromIdx,to:lr*10+lc,captures:[eIdx]})
       }
-      if (!piece.king && enemy < 0) break
-      row += dr; col += dc
+    }else{
+      let r=piece.row+dr, c=piece.col+dc
+      let enemyIdx=-1
+      while(playable(r,c)){
+        const occ=indexAt(board,r,c)
+        if(occ>=0){
+          if(board[occ].side===piece.side||captured.includes(occ)) break
+          if(enemyIdx>=0) break // second enemy in same jump = illegal
+          enemyIdx=occ
+        }else if(enemyIdx>=0){
+          const nextBoard=board.filter((_,i)=>i!==fromIdx && i!==enemyIdx)
+          nextBoard.push({...piece,row:r,col:c})
+          const newFrom=indexAt(nextBoard,r,c)
+          const further=getCaptureSequences(nextBoard,newFrom,[...captured,enemyIdx])
+          if(further.length){
+            for(const f of further) res.push({from:fromIdx,to:f.to,captures:[enemyIdx,...f.captures]})
+          }else{
+            res.push({from:fromIdx,to:r*10+c,captures:[enemyIdx]})
+          }
+          // keep scanning for farther landing squares behind same enemy
+        }
+        r+=dr; c+=dc
+      }
     }
   }
-  return moves
+  return res
 }
 
-function simpleMovesFor(board: Piece[], from: number): Move[] {
-  const piece = board[from]
-  if (!piece) return []
-  if (piece.king) {
-    const moves: Move[] = []
-    for (const [dr, dc] of directions) {
-      let row = piece.row + dr, col = piece.col + dc
-      while (playable(row, col) && indexAt(board, row, col) < 0) {
-        moves.push({ from, to: row * 10 + col, captures: [] }); row += dr; col += dc
-      }
+function simpleMoves(board:Piece[],from:number):Move[]{
+  const p=board[from]; if(!p) return []
+  if(p.king){
+    const m:Move[]=[]
+    for(const [dr,dc] of dirs){
+      let r=p.row+dr,c=p.col+dc
+      while(playable(r,c)&&indexAt(board,r,c)<0){ m.push({from,to:r*10+c,captures:[]}); r+=dr; c+=dc }
     }
-    return moves
+    return m
   }
-  const dr = piece.side === 'white'? 1 : -1
-  return [-1, 1].map(dc => ({ from, to: (piece.row + dr) * 10 + piece.col + dc, captures: [] as number[] })).filter(move => {
-    const row = Math.floor(move.to / 10), col = move.to % 10
-    return playable(row, col) && indexAt(board, row, col) < 0
+  const dr=p.side==='white'?1:-1
+  return [-1,1].map(dc=>({from,to:(p.row+dr)*10+p.col+dc,captures:[] as number[]})).filter(x=>{
+    const rr=Math.floor(x.to/10), cc=x.to%10
+    return playable(rr,cc)&&indexAt(board,rr,cc)<0
   })
 }
 
-export function getAllCaptures(board: Piece[], player: Side) {
-  return board.flatMap((piece, index) => piece.side === player? capturesFor(board, index) : [])
+export function getAllCaptures(b:Piece[],pl:Side){
+  let all:Move[]=[]
+  b.forEach((_,i)=>{ if(b[i].side===pl) all=all.concat(getCaptureSequences(b,i,[])) })
+  return all
 }
 
-function captureDepth(board: Piece[], move: Move): number {
-  const next = applyMove(board, move)
-  const row = Math.floor(move.to / 10), col = move.to % 10
-  const from = indexAt(next, row, col)
-  const continuations = from >= 0? capturesFor(next, from) : []
-  if (continuations.length) return move.captures.length
-  return Math.max(...continuations.map(nextMove => move.captures.length + captureDepth(next, nextMove)), move.captures.length)
-}
-
-export function getLegalMoves(board: Piece[], player: Side, from?: number): Move[] {
-  const captures = getAllCaptures(board, player)
-  if (captures.length) {
-    const max = Math.max(...captures.map(m => captureDepth(board, m)))
-    return captures.filter(move => captureDepth(board, move) === max && (from === undefined || move.from === from))
+export function getLegalMoves(b:Piece[],pl:Side,from?:number):Move[]{
+  const caps=getAllCaptures(b,pl)
+  if(caps.length){
+    const max=Math.max(...caps.map(x=>x.captures.length))
+    const best=caps.filter(x=>x.captures.length===max)
+    return from===undefined? best : best.filter(x=>x.from===from)
   }
-  if (from!== undefined) return board[from]?.side === player? simpleMovesFor(board, from) : []
-  return board.flatMap((piece, index) => piece.side === player? simpleMovesFor(board, index) : [])
+  if(from!==undefined) return b[from]?.side===pl? simpleMoves(b,from):[]
+  return b.flatMap((_,i)=> b[i].side===pl? simpleMoves(b,i):[])
 }
 
-export function applyMove(board: Piece[], move: Move): Piece[] {
-  const piece = board[move.from]
-  if (!piece) return board
-  const next = board.filter((_, index) => index!== move.from &&!move.captures.includes(index))
-  const row = Math.floor(move.to / 10), col = move.to % 10
-  next.push({...piece, row, col, king: piece.king || (piece.side === 'white'? row === 9 : row === 0) })
-  return next
+export function applyMove(b:Piece[],m:Move):Piece[]{
+  const p=b[m.from]; if(!p) return b
+  const nb=b.filter((_,i)=> i!==m.from &&!m.captures.includes(i))
+  const r=Math.floor(m.to/10), c=m.to%10
+  nb.push({...p,row:r,col:c,king:p.king||(p.side==='white'?r===9:r===0)})
+  return nb
 }
 
-export function botMove(board: Piece[], level: string): Move | null {
-  const moves = getLegalMoves(board, 'black')
-  if (!moves.length) return null
-  if (level === 'Easy') return moves[Math.floor(Math.random() * moves.length)]
-  if (level === 'Medium') return moves.sort((a, b) => b.captures.length - a.captures.length)[0]
-  return moves.sort((a, b) => evaluate(applyMove(board, b)) - evaluate(applyMove(board, a)))[0]
+export function botMove(b:Piece[],lvl:string):Move|null{
+  const ms=getLegalMoves(b,'black'); if(!ms.length) return null
+  if(lvl==='Easy') return ms[Math.floor(Math.random()*ms.length)]
+  if(lvl==='Medium') return ms.sort((a,b)=>b.captures.length-a.captures.length)[0]
+  const ev=(x:Piece[])=>x.reduce((s,p)=>s+(p.side==='black'?100+(p.king?50:0):-100-(p.king?50:0)),0)
+  return ms.sort((a,b)=>ev(applyMove(b,b))-ev(applyMove(b,a)))[0]
 }
 
-function evaluate(board: Piece[]) {
-  return board.reduce((score, piece) => score + (piece.side === 'black'? 100 + (piece.king? 50 : 0) : -100 - (piece.king? 50 : 0)), 0)
-}
-
-export function moveLabel(level: Move): string {
-  return level.captures.length? `Continue capture - you must take ${level.captures.length} more` : 'White moves first'
-}
+export function moveLabel(m:Move){ return m.captures.length?`Capture ${m.captures.length}`:'Your turn' }
