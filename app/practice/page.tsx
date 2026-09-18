@@ -34,16 +34,39 @@ export default function PracticePage(){
     }
   }
 
-  useEffect(()=>{
+      useEffect(()=>{
     if(!started || turn!=='black') return
-    const t=setTimeout(()=>{
-      const mv=botMove(board, level)
-      if(!mv){ setStatus('You win!'); return }
-      const nxt=applyMove(board, mv)
-      setBoard(nxt); setTurn('white'); setStatus('Your turn')
-    },600)
-    return ()=> clearTimeout(t)
-  },[started,turn,board,level])
+    if(board.filter(p=>p.side==='white').length===0){ setStatus('You lost'); return }
+    if(board.filter(p=>p.side==='black').length===0){ setStatus('You win!'); return }
+
+    const startTime = Date.now()
+    setStatus(`Bot thinking... (${level})`)
+
+    const timer = setTimeout(()=>{
+      const mv = botMove(board, level)
+      const elapsed = Date.now() - startTime
+      const minWait = 2000 // minimum 2 seconds
+      const remaining = Math.max(0, minWait - elapsed)
+
+      setTimeout(()=>{
+        if(!mv || getLegalMoves(board,'black').length===0){ setStatus('You win! - black has no moves'); return }
+        const nxt = applyMove(board, mv)
+        setBoard(nxt)
+        if(nxt.filter(p=>p.side==='white').length===0) setStatus('You lost')
+        else { setTurn('white'); setStatus('Your turn') }
+      }, remaining)
+
+    }, 100)
+
+    const maxTimer = setTimeout(()=>{
+      if(turn==='black'){
+        const mv = getLegalMoves(board,'black')[0]
+        if(mv){ const nxt=applyMove(board,mv); setBoard(nxt); setTurn('white'); setStatus('Your turn') }
+      }
+    }, 29000)
+
+    return ()=>{ clearTimeout(timer); clearTimeout(maxTimer) }
+  },[started, turn, board, level])
 
   const handle=(to:number)=>{
     if(!started || turn!=='white') return
