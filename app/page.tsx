@@ -19,7 +19,7 @@ function Nav() {
   return <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-5 lg:px-10">
     <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight"><span className="grid size-9 place-items-center rounded-xl bg-white text-black"><Trophy className="size-5" /></span>BOARDROOM</Link>
     <nav className="hidden items-center gap-8 text-sm text-zinc-400 md:flex"><Link className="text-white" href="/">Home</Link><Link href="/tournaments">Tournaments</Link><Link href="/practice">Practice</Link><Link href="/buy">Buy coins</Link></nav>
-    <div className="hidden items-center gap-3 md:flex"><div className="flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-sm"><CircleDollarSign className="size-4 text-[#ffd700]" />1,240</div><button className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-black">Sign in</button></div>
+    <div className="hidden items-center gap-3 md:flex"><div className="flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-sm"><CircleDollarSign className="size-4 text-[#ffd700]" />100</div><button className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-black">Sign in</button></div>
     <button aria-label="Open menu" onClick={() => setOpen(!open)} className="md:hidden">{open? <X /> : <Menu />}</button>
     {open && <div className="absolute left-5 right-5 top-20 z-20 flex flex-col gap-4 rounded-2xl border border-white/10 bg-zinc-950 p-5 text-sm shadow-2xl md:hidden"><Link href="/tournaments">Tournaments</Link><Link href="/practice">Practice</Link><Link href="/buy">Buy coins</Link></div>}
   </header>
