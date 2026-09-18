@@ -1,42 +1,97 @@
 export type Side = 'black' | 'white'
-export type Piece = { row: number; col: number; side: Side; king?: boolean }
+export type Piece = { row: number; col: number; side: Side; king: boolean }
 export type Move = { from: number; to: number; captures: number[] }
 
 export const playable = (row: number, col: number) => row >= 0 && row < 10 && col >= 0 && col < 10 && (row + col) % 2 === 1
+export const indexAt = (board: Piece[], row: number, col: number) => board.findIndex((piece) => piece.row === row && piece.col === col)
+
 export function initialBoard(): Piece[] {
   const pieces: Piece[] = []
   for (let row = 0; row < 10; row++) for (let col = 0; col < 10; col++) {
     if (!playable(row, col)) continue
-    if (row < 4) pieces.push({ row, col, side: 'white' })
-    if (row > 5) pieces.push({ row, col, side: 'black' })
+    if (row < 4) pieces.push({ row, col, side: 'white', king: false })
+    if (row > 5) pieces.push({ row, col, side: 'black', king: false })
   }
   return pieces
 }
-export function indexAt(board: Piece[], row: number, col: number) { return board.findIndex(p => p.row === row && p.col === col) }
-const dirs = [[-1,-1],[-1,1],[1,-1],[1,1]] as const
-function capturesFor(board: Piece[], player: Side, from: number): Move[] {
-  const p = board[from]; if (!p || p.side !== player) return []
-  const out: Move[] = []
-  if (!p.king) {
-    for (const [dr, dc] of dirs) {
-      const mid = indexAt(board, p.row + dr, p.col + dc), land = indexAt(board, p.row + dr * 2, p.col + dc * 2)
-      if (playable(p.row + dr * 2, p.col + dc * 2) && mid >= 0 && board[mid].side !== player && land < 0) out.push({ from, to: ((p.row + dr * 2) * 10 + p.col + dc * 2), captures: [mid] })
+
+const directions = [[-1, -1], [-1, 1], [1, -1], [1, 1]] as const
+
+function capturesFor(board: Piece[], from: number): Move[] {
+  const piece = board[from]
+  if (!piece) return []
+  const moves: Move[] = []
+  for (const [dr, dc] of directions) {
+    let row = piece.row + dr
+    let col = piece.col + dc
+    let enemy = -1
+    while (playable(row, col)) {
+      const occupied = indexAt(board, row, col)
+      if (occupied >= 0) {
+        if (board[occupied].side === piece.side || enemy >= 0) break
+        enemy = occupied
+      } else if (enemy >= 0) {
+        moves.push({ from, to: row * 10 + col, captures: [enemy] })
+        if (!piece.king) break
+      }
+      row += dr
+      col += dc
     }
-  } else {
-    for (const [dr, dc] of dirs) { let r = p.row + dr, c = p.col + dc, enemy = -1; while (playable(r,c)) { const i=indexAt(board,r,c); if(i>=0){ if(board[i].side===player || enemy>=0) break; enemy=i } else if(enemy>=0) out.push({from,to:r*10+c,captures:[enemy]}); r+=dr;c+=dc } }
   }
-  return out
+  return moves
 }
+
+function simpleMovesFor(board: Piece[], from: number): Move[] {
+  const piece = board[from]
+  if (!piece) return []
+  if (piece.king) {
+    const moves: Move[] = []
+    for (const [dr, dc] of directions) {
+      let row = piece.row + dr
+      let col = piece.col + dc
+      while (playable(row, col) && indexAt(board, row, col) < 0) {
+        moves.push({ from, to: row * 10 + col, captures: [] })
+        row += dr
+        col += dc
+      }
+    }
+    return moves
+  }
+  const dr = piece.side === 'black' ? -1 : 1
+  return [-1, 1].map((dc) => ({ from, to: (piece.row + dr) * 10 + piece.col + dc, captures: [] })).filter((move) => {
+    const row = Math.floor(move.to / 10), col = move.to % 10
+    return playable(row, col) && indexAt(board, row, col) < 0
+  })
+}
+
+export function getAllCaptures(board: Piece[], player: Side) {
+  return board.flatMap((piece, index) => piece.side === player ? capturesFor(board, index) : [])
+}
+
 export function getLegalMoves(board: Piece[], player: Side, from?: number): Move[] {
-  const captures = board.flatMap((p,i) => p.side === player ? capturesFor(board, player, i) : [])
-  if (captures.length) return from === undefined ? captures : captures.filter(m => m.from === from)
-  if (from !== undefined) {
-    const p=board[from]; if(!p||p.side!==player)return []
-    if(p.king){ const out:Move[]=[]; for(const [dr,dc] of dirs){let r=p.row+dr,c=p.col+dc;while(playable(r,c)&&indexAt(board,r,c)<0){out.push({from,to:r*10+c,captures:[]});r+=dr;c+=dc}} return out }
-    const dr=player==='black'?-1:1; return [-1,1].map(dc=>({from,to:(p.row+dr)*10+p.col+dc,captures:[]})).filter(m=>playable(Math.floor(m.to/10),m.to%10)&&indexAt(board,Math.floor(m.to/10),m.to%10)<0)
-  }
-  return board.flatMap((p,i)=>p.side===player?getLegalMoves(board,player,i):[])
+  const captures = getAllCaptures(board, player)
+  if (captures.length) return from === undefined ? captures : captures.filter((move) => move.from === from)
+  if (from !== undefined) return board[from]?.side === player ? simpleMovesFor(board, from) : []
+  return board.flatMap((piece, index) => piece.side === player ? simpleMovesFor(board, index) : [])
 }
-export function applyMove(board: Piece[], move: Move): Piece[] { const next=board.filter((_,i)=>!move.captures.includes(i)&&i!==move.from); const p=board[move.from]; const row=Math.floor(move.to/10),col=move.to%10; next.push({...p,row,col,king:p.king|| (p.side==='black'&&row===0)||(p.side==='white'&&row===9)}); return next }
-export function botMove(board: Piece[], level: string): Move | null { const moves=getLegalMoves(board,'white'); if(!moves.length)return null; if(level==='Easy')return moves[Math.floor(Math.random()*moves.length)]; if(level==='Medium')return [...moves].sort((a,b)=>b.captures.length-a.captures.length)[0]; return [...moves].sort((a,b)=>score(applyMove(board,b))-score(applyMove(board,a)))[0] }
-function score(board: Piece[]){return board.reduce((n,p)=>n+(p.side==='white'?1+(p.king?.5:0):-1-(p.king?.5:0)),0)}
+
+export function applyMove(board: Piece[], move: Move): Piece[] {
+  const piece = board[move.from]
+  if (!piece) return board
+  const next = board.filter((_, index) => index !== move.from && !move.captures.includes(index))
+  const row = Math.floor(move.to / 10), col = move.to % 10
+  next.push({ ...piece, row, col, king: piece.king || (piece.side === 'black' ? row === 0 : row === 9) })
+  return next
+}
+
+export function botMove(board: Piece[], level: string): Move | null {
+  const moves = getLegalMoves(board, 'white')
+  if (!moves.length) return null
+  if (level === 'Easy') return moves[Math.floor(Math.random() * moves.length)]
+  if (level === 'Medium') return [...moves].sort((a, b) => b.captures.length - a.captures.length)[0]
+  return [...moves].sort((a, b) => evaluate(applyMove(board, b)) - evaluate(applyMove(board, a)))[0]
+}
+
+function evaluate(board: Piece[]) {
+  return board.reduce((score, piece) => score + (piece.side === 'white' ? 100 + (piece.king ? 50 : piece.row) : -100 - (piece.king ? 50 : 9 - piece.row)), 0)
+}
