@@ -19,7 +19,6 @@ function Nav() {
   const [balance, setBalance] = useState(100)
 
   useEffect(() => {
-    // 100 bonus for new users
     const saved = localStorage.getItem('user_coins')
     if (saved) {
       setBalance(Number(saved))
@@ -27,22 +26,24 @@ function Nav() {
       localStorage.setItem('user_coins', '100')
       setBalance(100)
     }
-    // listen for updates from buy page
-    const onStorage = () => {
+    const sync = () => {
       const v = localStorage.getItem('user_coins')
       if (v) setBalance(Number(v))
     }
-    window.addEventListener('storage', onStorage)
-    window.addEventListener('coins-updated', onStorage as any)
+    window.addEventListener('storage', sync)
+    window.addEventListener('coins-updated', sync as any)
     return () => {
-      window.removeEventListener('storage', onStorage)
-      window.removeEventListener('coins-updated', onStorage as any)
+      window.removeEventListener('storage', sync)
+      window.removeEventListener('coins-updated', sync as any)
     }
   }, [])
 
   return (
     <header className="relative mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-5 lg:px-10">
-      <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight"><span className="grid size-9 place-items-center rounded-xl bg-white text-black"><Trophy className="size-5" /></span>BOARDROOM</Link>
+      <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
+        <span className="grid size-9 place-items-center rounded-xl bg-white text-black"><Trophy className="size-5" /></span>
+        BOARDROOM
+      </Link>
 
       <nav className="hidden items-center gap-8 text-sm text-zinc-400 md:flex">
         <Link className="text-white" href="/">Home</Link>
@@ -51,13 +52,15 @@ function Nav() {
         <Link href="/buy">Buy coins</Link>
       </nav>
 
-      {/* VISIBLE ON BOTH MOBILE + DESKTOP */}
       <div className="flex items-center gap-2 md:gap-3">
         <div className="flex items-center gap-2 rounded-full border border-white/15 px-3 py-2 text-sm md:px-4">
-          <CircleDollarSign className="size-4 text-[#ffd700]" />{balance}
+          <CircleDollarSign className="size-4 text-[#ffd700]" />
+          {balance}
         </div>
-        <button className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-black md:px-5 md:text-sm">CLEANpress</button>
-        <button aria-label="Open menu" onClick={() => setOpen(!open)} className="grid size-9 place-items-center rounded-full border border-white/10 md:hidden">
+        <button className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-black md:px-5 md:text-sm">
+          CLEANpress
+        </button>
+        <button onClick={() => setOpen(!open)} className="grid size-9 place-items-center rounded-full border border-white/10 md:hidden">
           {open? <X className="size-4" /> : <Menu className="size-4" />}
         </button>
       </div>
@@ -78,7 +81,7 @@ function TournamentCard({ t }: any) {
     const hour = new Date().getHours()
     if (hour >= 19 && hour < 20) {
       return (
-        <article className={t.tone + ' rounded-[24px] p-5 text-black'}>
+        <article className={`${t.tone} rounded-[24px] p-5 text-black`}>
           <div className="text-center py-4">
             <h1 className="text-sm font-bold uppercase tracking-widest">🏆 Today's Winner</h1>
             <h2 className="text-3xl font-black mt-3">{t.winner_name}</h2>
@@ -88,32 +91,60 @@ function TournamentCard({ t }: any) {
       )
     }
   }
+
   function handleWatch(e: any) {
     e.preventDefault()
     const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Lagos', hour12: false, hour: '2-digit' }).formatToParts(new Date())
-    const h = Number(parts.find((p) => p.type === 'hour')?.value || 0)
+    const h = Number(parts.find((p: any) => p.type === 'hour')?.value || 0)
     const isLive = h >= 19 && h < 20
-    if (isLive) window.location.href = '/play/demo-match'
-    else { const el = document.getElementById('watch-popup') as any; if (el) el.style.display = 'flex' }
+    if (isLive) {
+      window.location.href = '/play/demo-match'
+    } else {
+      const el = document.getElementById('watch-popup') as any
+      if (el) el.style.display = 'flex'
+    }
   }
+
   const widthPercent = (t.joined / 32) * 100 + '%'
+
   return (
-    <article className={t.tone + ' rounded-[24px] p-5 text-black'}>
+    <article className={`${t.tone} rounded-[24px] p-5 text-black`}>
       <div className="flex items-start justify-between">
-        <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/50">{t.name} tournament</p><h3 className="mt-2 text-2xl font-semibold">Win <Coins>{t.prize.toLocaleString()}</Coins></h3></div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/50">{t.name} tournament</p>
+          <h3 className="mt-2 text-2xl font-semibold">Win <Coins>{t.prize.toLocaleString()}</Coins></h3>
+        </div>
         <span className="rounded-full bg-black/10 px-3 py-1 text-xs font-semibold">Daily</span>
       </div>
+
       <div className="mt-8 flex items-end justify-between">
-        <div className="text-sm text-black/55"><p>Entry</p><p className="mt-1 text-base font-semibold text-black"><Coins>{t.entry}</Coins></p></div>
-        <div className="text-right text-sm text-black/55"><p className="flex items-center justify-end gap-1"><Users className="size-3" />{t.joined}/32 joined</p><div className="mt-2 h-1.5 w-28 overflow-hidden rounded-full bg-black/10"><div className="h-full rounded-full bg-black" style={{ width: widthPercent }} /></div></div></div>
+        <div className="text-sm text-black/55">
+          <p>Entry</p>
+          <p className="mt-1 text-base font-semibold text-black"><Coins>{t.entry}</Coins></p>
+        </div>
+        <div className="text-right text-sm text-black/55">
+          <p className="flex items-center justify-end gap-1"><Users className="size-3" />{t.joined}/32 joined</p>
+          <div className="mt-2 h-1.5 w-28 overflow-hidden rounded-full bg-black/10">
+            <div className="h-full rounded-full bg-black" style={{ width: widthPercent }} />
+          </div>
+        </div>
       </div>
-      <div className="mt-5 flex gap-2"><Link href="/tournaments" className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-black py-3 text-sm font-semibold text-white">Join now <ArrowRight className="size-4" /></Link><button onClick={handleWatch} className="grid size-11 place-items-center rounded-xl bg-black/10"><Eye className="size-4" /></button></div>
+
+      <div className="mt-5 flex gap-2">
+        <Link href="/tournaments" className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-black py-3 text-sm font-semibold text-white">
+          Join now <ArrowRight className="size-4" />
+        </Link>
+        <button onClick={handleWatch} className="grid size-11 place-items-center rounded-xl bg-black/10">
+          <Eye className="size-4" />
+        </button>
+      </div>
     </article>
   )
 }
 
 export default function Page() {
   const [seconds, setSeconds] = useState(0)
+
   useEffect(() => {
     const getSeconds = () => {
       const now = new Date()
@@ -126,9 +157,11 @@ export default function Page() {
     const id = setInterval(update, 1000)
     return () => clearInterval(id)
   }, [])
+
   const hours = String(Math.floor(seconds / 3600)).padStart(2, '0')
   const mins = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')
   const secs = String(seconds % 60).padStart(2, '0')
+
   return (
     <main className="min-h-screen bg-black text-white">
       <Nav />
@@ -144,7 +177,6 @@ export default function Page() {
         </div>
       </section>
       <section className="mx-auto max-w-7xl px-5 pb-24 lg:px-10"><div className="mb-6 flex items-end justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">Tonights games</p><h2 className="mt-2 text-3xl font-semibold tracking-tight">Choose your table</h2></div><Link href="/tournaments" className="hidden items-center gap-2 text-sm text-zinc-400 md:flex">View all <ArrowRight className="size-4" /></Link></div><div className="grid gap-4 md:grid-cols-3">{tournaments.map((t) => <TournamentCard key={t.name} t={t} />)}</div></section>
-      <section className="border-t border-white/10"><div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 md:grid-cols-3 lg:px-10"><div><Sparkles className="size-5 text-[#ffd700]" /><h3 className="mt-4 text-xl font-semibold">Skill only</h3><p className="mt-2 text-sm leading-6 text-zinc-500">Compulsory captures. Flying kings. No coin flips.</p></div><div><Shield className="size-5 text-[#ffd700]" /><h3 className="mt-4 text-xl font-semibold">Fair by design</h3><p className="mt-2 text-sm leading-6 text-zinc-500">Independent clocks and strict rounds keep every match moving.</p></div><div><Play className="size-5 text-[#ffd700]" /><h3 className="mt-4 text-xl font-semibold">Play for free</h3><p className="mt-2 text-sm leading-6 text-zinc-500">Warm up against three levels of bot.</p></div></div></section>
       <div id="watch-popup" style={{ display: 'none' }} className="fixed inset-0 z-[100] items-center justify-center bg-black/80 p-5"><div className="w-full max-w-sm rounded-[24px] border border-white/10 bg-zinc-900 p-6 text-center"><p className="text-xs uppercase tracking-[0.2em] text-[#ffd700]">Live not started</p><h3 className="mt-3 text-xl font-semibold text-white">Live match starts 7:00 PM WAT</h3><p className="mt-2 text-sm text-zinc-400">Countdown: <span className="font-semibold text-white">{hours}:{mins}:{secs}</span></p><button onClick={() => { const el = document.getElementById('watch-popup') as any; if (el) el.style.display = 'none' }} className="mt-6 w-full rounded-xl bg-white py-3 text-sm font-semibold text-black">Okay</button></div></div>
     </main>
   )
