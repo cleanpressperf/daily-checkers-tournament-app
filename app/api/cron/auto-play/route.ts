@@ -1,39 +1,20 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function GET() {
-  try {
-    // TEST MODE - NO TIME CHECK, ALWAYS RUNS
-    const { data: matches, error } = await supabase
-    .from('tournament_matches')
-    .select('id, tournament_id, round, status, current_turn, player1_username, player2_username, board_fen')
-    .eq('status', 'live')
-    .limit(20)
+  const tryTables = ['tournament_matches','matches','games','tournament_games']
+  const results:any = {}
 
-    if (error) throw error
-
-    if (!matches || matches.length === 0) {
-      return NextResponse.json({ ok: true, message: 'No live matches found - need to run fill-brackets first', processed: 0 })
-    }
-
-    let processed = 0
-    for (const m of matches) {
-      const nextTurn = m.current_turn === 'player1' ? 'player2' : 'player1'
-      
-      await supabase.from('tournament_matches').update({
-        current_turn: nextTurn,
-        last_move_at: new Date().toISOString(),
-      }).eq('id', m.id)
-      processed++
-    }
-
-    return NextResponse.json({ ok: true, processed, message: `Moved ${processed} boards - check your site now!` })
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 })
+  for (const tbl of tryTables) {
+    const { data, error } = await supabase.from(tbl).select('id').limit(1)
+    results[tbl] = error? `MISSING: ${error.message}` : `FOUND: ${data?.length} rows`
   }
+
+  // also check tournaments table
+  const { data: tours, error: tourErr } = await supabase.from('tournaments').select('id,date').order('date',{ascending:false}).limit(3)
+  results['tournaments_check'] = tourErr? tourErr.message : tours
+
+  return NextResponse.json(results)
 }
