@@ -1,16 +1,20 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { CircleDollarSign, Trophy } from 'lucide-react'
+import { CircleDollarSign, Trophy, Flame, Crown } from 'lucide-react'
 import Link from 'next/link'
+import Script from 'next/script'
 
-const packages = [
-  { coins: 500, price: 1000, label: 'Starter' },
-  { coins: 1000, price: 1800, label: 'Popular' },
-  { coins: 3000, price: 5000, label: 'Pro' },
+const packs = [
+  { price: 50, coins: 50, bonus: 0, label: 'Quick' },
+  { price: 100, coins: 100, bonus: 0, label: 'Basic' },
+  { price: 300, coins: 300, bonus: 0, label: 'Standard' },
+  { price: 500, coins: 550, bonus: 50, label: 'Popular', popular: true },
+  { price: 1000, coins: 1200, bonus: 200, label: 'Best Value', best: true },
 ]
 
 export default function BuyPage() {
   const [balance, setBalance] = useState(100)
+  const [email, setEmail] = useState('')
   const [loading, setLoading] = useState<number | null>(null)
 
   useEffect(() => {
@@ -20,63 +24,106 @@ export default function BuyPage() {
       localStorage.setItem('user_coins', '100')
       setBalance(100)
     }
+    const savedEmail = localStorage.getItem('boardroom_email')
+    if (savedEmail) setEmail(savedEmail)
   }, [])
 
-  function handleBuy(pkg: typeof packages[0]) {
-    setLoading(pkg.coins)
-    // --- PAYSTACK INTEGRATION ---
-    // Replace with your Paystack popup if you have it.
-    // For now we simulate success — change to your real Paystack callback.
+  function payWithPaystack(pack: typeof packs[0]) {
+    if (!email ||!email.includes('@')) {
+      alert('Enter your email for Paystack receipt')
+      return
+    }
+    localStorage.setItem('boardroom_email', email)
 
-    // Example Paystack flow:
-    // const handler = (window as any).PaystackPop.setup({ key: 'pk_xxx', email: 'guest@boardroom.com', amount: pkg.price*100, callback: function(){ doSuccess() } })
-    // handler.openIframe()
+    // @ts-ignore
+    const PaystackPop = (window as any).PaystackPop
+    if (!PaystackPop) {
+      alert('Paystack not loaded, check internet and reload')
+      return
+    }
 
-    // Simulated success (remove when you add real Paystack):
-    setTimeout(() => {
-      const current = Number(localStorage.getItem('user_coins') || '100')
-      const base = current === 0? 100 : current
-      const newBalance = base + pkg.coins
+    setLoading(pack.price)
 
-      localStorage.setItem('user_coins', String(newBalance))
-      window.dispatchEvent(new Event('coins-updated'))
-      setBalance(newBalance)
-      setLoading(null)
-      alert(`Success! +${pkg.coins} coins added. New balance: ${newBalance}`)
-    }, 1000)
+    const handler = PaystackPop.setup({
+      key: 'pk_live_6960e1a77fb79df45e086a07cd8fa9e45dd3652a',
+      email: email,
+      amount: pack.price * 100,
+      currency: 'NGN',
+      ref: 'BR-' + Date.now() + '-' + Math.floor(Math.random()*1000),
+      callback: function (response: any) {
+        // THIS IS THE FIX — THIS WAS MISSING BEFORE
+        try {
+          const current = Number(localStorage.getItem('user_coins') || '100')
+          const base = current === 0? 100 : current
+          const newBalance = base + pack.coins
+
+          localStorage.setItem('user_coins', String(newBalance))
+          window.dispatchEvent(new Event('coins-updated'))
+          setBalance(newBalance)
+
+          alert(`Payment successful! Ref: ${response.reference}\n+${pack.coins} coins added.\nNew balance: ${newBalance}`)
+          window.location.href = '/'
+        } catch(e) {
+          alert('Payment success but error adding coins. Contact support with ref: ' + response.reference)
+        } finally {
+          setLoading(null)
+        }
+      },
+      onClose: function () {
+        setLoading(null)
+      }
+    })
+    handler.openIframe()
   }
 
   return (
     <main className="min-h-screen bg-black text-white">
-      <header className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 lg:px-10">
-        <Link href="/" className="flex items-center gap-2 text-lg font-bold"><span className="grid size-9 place-items-center rounded-xl bg-white text-black"><Trophy className="size-5" /></span>BOARDROOM</Link>
-        <div className="flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-sm"><CircleDollarSign className="size-4 text-[#ffd700]" />{balance}</div>
+      <Script src="https://js.paystack.co/v1/inline.js" strategy="beforeInteractive" />
+
+      <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5 lg:px-10">
+        <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
+          <span className="grid size-9 place-items-center rounded-xl bg-white text-black"><Trophy className="size-5" /></span>
+          BOARDROOM
+        </Link>
+        <div className="flex items-center gap-2 rounded-full border border-white/15 bg-zinc-950 px-4 py-2 text-sm font-medium">
+          <CircleDollarSign className="size-4 text-[#ffd700]" />{balance}
+        </div>
       </header>
 
-      <section className="mx-auto max-w-3xl px-5 py-16 text-center">
-        <h1 className="text-4xl font-semibold">Buy Coins</h1>
-        <p className="mt-3 text-zinc-400">New users get 100 bonus once. Any purchase adds to your current balance.</p>
-        <p className="mt-2 text-sm text-zinc-500">Current balance: <span className="text-white font-semibold">{balance} coins</span></p>
+      <section className="mx-auto max-w-6xl px-5 pb-24 pt-8 lg:px-10">
+        <div className="max-w-2xl">
+          <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">Buy coins</h1>
+          <p className="mt-3 text-zinc-400">Every new player gets <span className="text-white font-semibold">100 free</span>. Your purchases always add up.</p>
+          <input
+            value={email}
+            onChange={e=>setEmail(e.target.value)}
+            placeholder="Your email for Paystack receipt"
+            className="mt-6 w-full max-w-sm rounded-full border border-white/10 bg-zinc-900 px-5 py-3 text-sm outline-none placeholder:text-zinc-600 focus:border-white/20"
+          />
+        </div>
 
-        <div className="mt-10 grid gap-4 md:grid-cols-3">
-          {packages.map((pkg) => (
-            <div key={pkg.coins} className="rounded-[24px] border border-white/10 bg-zinc-950 p-6">
-              <p className="text-xs uppercase tracking-widest text-zinc-500">{pkg.label}</p>
-              <h3 className="mt-3 text-3xl font-bold flex items-center justify-center gap-2"><CircleDollarSign className="size-6 text-[#ffd700]" />{pkg.coins}</h3>
-              <p className="mt-2 text-zinc-400">₦{pkg.price.toLocaleString()}</p>
-              <button
-                onClick={() => handleBuy(pkg)}
-                disabled={loading!== null}
-                className="mt-6 w-full rounded-xl bg-white py-3 text-sm font-semibold text-black disabled:opacity-50"
-              >
-                {loading === pkg.coins? 'Processing...' : `Buy ${pkg.coins}`}
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          {packs.map((p) => (
+            <div key={p.price} className={`relative rounded-[24px] border p-5 flex flex-col ${p.best? 'border-[#ffd700]/50 bg-[#1a1600]' : p.popular? 'border-white/20 bg-zinc-900' : 'border-white/10 bg-zinc-950'}`}>
+              {p.popular && <span className="absolute -top-3 left-5 flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[10px] font-bold tracking-widest text-black"><Flame className="size-3" />POPULAR</span>}
+              {p.best && <span className="absolute -top-3 left-5 flex items-center gap-1 rounded-full bg-[#ffd700] px-3 py-1 text-[10px] font-bold tracking-widest text-black"><Crown className="size-3" />BEST VALUE</span>}
+              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{p.label}</p>
+              <div className="mt-4 flex items-baseline gap-1">
+                <span className="text-3xl font-bold tracking-tight">{p.coins}</span>
+                <CircleDollarSign className="size-4 text-[#ffd700]" />
+              </div>
+              {p.bonus > 0? <p className="mt-1 text-xs font-semibold text-[#ffd700]">+{p.bonus} bonus</p> : <p className="mt-1 text-xs text-zinc-600">No bonus</p>}
+              <div className="mt-6 rounded-xl bg-black/40 px-3 py-2 text-sm"><span className="text-zinc-400">Pay </span><span className="font-semibold text-white">₦{p.price}</span></div>
+              <button onClick={()=>payWithPaystack(p)} disabled={loading!==null} className={`mt-4 w-full rounded-xl py-3 text-sm font-semibold ${p.best? 'bg-[#ffd700] text-black' : 'bg-white text-black'} disabled:opacity-50`}>
+                {loading===p.price? 'Opening...' : `Buy ${p.coins}`}
               </button>
             </div>
           ))}
         </div>
 
-        <p className="mt-8 text-xs text-zinc-600">If you buy 1000 while you have 100, you will have 1100. Next buy of 500 = 1600.</p>
-        <Link href="/" className="mt-6 inline-block text-sm text-zinc-400 underline">Back home</Link>
+        <div className="mt-8 rounded-2xl border border-white/5 bg-zinc-950 p-4 text-xs leading-5 text-zinc-500">
+          Example: New user = 100. Buys ₦1000 (1200 coins) = 1300 total. Next buy ₦500 (550 coins) = 1850.
+        </div>
       </section>
     </main>
   )
