@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect } from 'react'
-import { ArrowRight, CircleDollarSign, Clock3, Eye, Menu, Play, Shield, Sparkles, Trophy, Users, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ArrowRight, ChevronDown, CircleDollarSign, Clock3, Eye, Menu, Play, Shield, Sparkles, Trophy, Users, X } from 'lucide-react'
 
 const tournaments = [
   { name: 'Bronze', entry: 300, prize: 3000, joined: 24, tone: 'bg-[#f3f3f3]' },
@@ -16,28 +16,19 @@ function Coins({ children }: { children: React.ReactNode }) {
 
 function Nav() {
   const [open, setOpen] = useState(false)
-  return (
-    <header className="relative mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-5 lg:px-10">
-      <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight"><span className="grid size-9 place-items-center rounded-xl bg-white text-black"><Trophy className="size-5" /></span>BOARDROOM</Link>
-      <nav className="hidden items-center gap-8 text-sm text-zinc-400 md:flex"><Link className="text-white" href="/">Home</Link><Link href="/tournaments">Tournaments</Link><Link href="/practice">Practice</Link><Link href="/buy">Buy coins</Link></nav>
-      <div className="flex items-center gap-2">
-        <Link href="/login" className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black">Sign In</Link>
-        <button onClick={() => setOpen(!open)} className="grid size-9 place-items-center rounded-full border border-white/10 md:hidden">{open? <X className="size-4" /> : <Menu className="size-4" />}</button>
-      </div>
-      {open && (
-        <div className="absolute left-5 right-5 top-20 z-50 flex flex-col gap-4 rounded-2xl border border-white/10 bg-zinc-950 p-5 text-sm shadow-2xl md:hidden">
-          <Link href="/" onClick={()=>setOpen(false)}>Home</Link>
-          <Link href="/tournaments" onClick={()=>setOpen(false)}>Tournaments</Link>
-          <Link href="/practice" onClick={()=>setOpen(false)}>Practice</Link>
-          <Link href="/buy" onClick={()=>setOpen(false)}>Buy coins</Link>
-          <Link href="/login" onClick={()=>setOpen(false)} className="block rounded-full bg-white py-3 text-center text-sm font-semibold text-black">Sign In / Create Account</Link>
-        </div>
-      )}
-    </header>
-  )
+  return <header className="relative mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-5 lg:px-10">
+    <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight"><span className="grid size-9 place-items-center rounded-xl bg-white text-black"><Trophy className="size-5" /></span>BOARDROOM</Link>
+    <nav className="hidden items-center gap-8 text-sm text-zinc-400 md:flex"><Link className="text-white" href="/">Home</Link><Link href="/tournaments">Tournaments</Link><Link href="/practice">Practice</Link><Link href="/buy">Buy coins</Link><Link href="/login" className="rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-black">Sign In</Link></nav>
+    <div className="flex items-center gap-2">
+      <Link href="/login" className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black">Sign In</Link>
+      <button aria-label="Open menu" onClick={() => setOpen(!open)} className="grid size-9 place-items-center rounded-full border border-white/10 md:hidden">{open? <X className="size-4" /> : <Menu className="size-4" />}</button>
+    </div>
+    {open && <div className="absolute left-5 right-5 top-20 z-20 flex flex-col gap-4 rounded-2xl border border-white/10 bg-zinc-950 p-5 text-sm shadow-2xl md:hidden"><Link href="/tournaments">Tournaments</Link><Link href="/practice">Practice</Link><Link href="/buy">Buy coins</Link><Link href="/login" className="rounded-full bg-white px-4 py-2 text-center text-sm font-semibold text-black">Sign In</Link></div>}
+  </header>
 }
 
 function TournamentCard({ t }: { t: typeof tournaments[number] & { status?: string, winner_name?: string, finished_at?: string } }) {
+  // WINNER DISPLAY 7:40PM - 8PM
   if ((t as any).status === 'finished' && (t as any).winner_name) {
     const hour = new Date().getHours()
     if (hour >= 19 && hour < 20) {
@@ -53,6 +44,7 @@ function TournamentCard({ t }: { t: typeof tournaments[number] & { status?: stri
       )
     }
   }
+
   function handleWatch(e: any) {
     e.preventDefault();
     const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Lagos', hour12: false, hour: '2-digit' }).formatToParts(new Date());
