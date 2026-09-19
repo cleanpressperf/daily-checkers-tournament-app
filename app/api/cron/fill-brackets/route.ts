@@ -28,7 +28,7 @@ export async function GET() {
         { date: today, status: 'active', name: `Daily ${today}` },
         { date: today },
       ]
-
+ 
       for (const payload of attempts) {
         const { data, error } = await supabase.from('tournaments').insert(payload).select('id').single()
         if (data) { newT = data; break }
