@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { ArrowRight, ChevronDown, CircleDollarSign, Clock3, Eye, Menu, Play, Shield, Sparkles, Trophy, Users, X } from 'lucide-react'
+import { ArrowRight, CircleDollarSign, Clock3, Eye, Menu, Play, Shield, Sparkles, Trophy, Users, X } from 'lucide-react'
+import { supabase } from '@/lib/supabase/client'
 
 const tournaments = [
   { name: 'Bronze', entry: 300, prize: 3000, joined: 24, tone: 'bg-[#f3f3f3]' },
@@ -16,27 +17,70 @@ function Coins({ children }: { children: React.ReactNode }) {
 
 function Nav() {
   const [open, setOpen] = useState(false)
-  return <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-5 lg:px-10">
-    <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight"><span className="grid size-9 place-items-center rounded-xl bg-white text-black"><Trophy className="size-5" /></span>BOARDROOM</Link>
-    <nav className="hidden items-center gap-8 text-sm text-zinc-400 md:flex"><Link className="text-white" href="/">Home</Link><Link href="/tournaments">Tournaments</Link><Link href="/practice">Practice</Link><Link href="/buy">Buy coins</Link></nav>
-    <div className="hidden items-center gap-3 md:flex"><div className="flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-sm"><CircleDollarSign className="size-4 text-[#ffd700]" />100</div><button className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-black">CLEANpress</button></div>
-    <button aria-label="Open menu" onClick={() => setOpen(!open)} className="md:hidden">{open? <X /> : <Menu />}</button>
-    {open && <div className="absolute left-5 right-5 top-20 z-20 flex flex-col gap-4 rounded-2xl border border-white/10 bg-zinc-950 p-5 text-sm shadow-2xl md:hidden"><Link href="/tournaments">Tournaments</Link><Link href="/practice">Practice</Link><Link href="/buy">Buy coins</Link></div>}
-  </header>
+  const [user, setUser] = useState<any>(null)
+  const [coins, setCoins] = useState<number | null>(null)
+
+  useEffect(() => {
+    async function load(){
+      try{
+        const {data:{user}} = await supabase.auth.getUser()
+        setUser(user)
+        if(user){
+          const {data} = await supabase.from('profiles').select('coins').eq('id', user.id).single()
+          if(data) setCoins(data.coins)
+        }
+      }catch(e){ console.log(e) }
+    }
+    load()
+  },[])
+
+  return (
+    <header className="relative mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-5 lg:px-10">
+      <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight"><span className="grid size-9 place-items-center rounded-xl bg-white text-black"><Trophy className="size-5" /></span>BOARDROOM</Link>
+      <nav className="hidden items-center gap-8 text-sm text-zinc-400 md:flex"><Link className="text-white" href="/">Home</Link><Link href="/tournaments">Tournaments</Link><Link href="/practice">Practice</Link><Link href="/buy">Buy coins</Link></nav>
+
+      <div className="flex items-center gap-2">
+        {user? (
+          <>
+            <div className="flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-2 text-sm"><CircleDollarSign className="size-4 text-[#ffd700]" />{coins?? 100}</div>
+            <div className="hidden md:flex max-w-[120px] truncate rounded-full bg-white px-4 py-2 text-sm font-semibold text-black">{user.email?.split('@')[0]}</div>
+          </>
+        ) : (
+          <Link href="/login" className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black">Sign In</Link>
+        )}
+        <button aria-label="Menu" onClick={() => setOpen(!open)} className="grid size-9 place-items-center rounded-full border border-white/10 md:hidden">{open? <X className="size-4" /> : <Menu className="size-4" />}</button>
+      </div>
+
+      {open && (
+        <div className="absolute left-5 right-5 top-20 z-50 flex flex-col gap-4 rounded-2xl border border-white/10 bg-zinc-950 p-5 text-sm shadow-2xl md:hidden">
+          <Link href="/" onClick={()=>setOpen(false)}>Home</Link>
+          <Link href="/tournaments" onClick={()=>setOpen(false)}>Tournaments</Link>
+          <Link href="/practice" onClick={()=>setOpen(false)}>Practice</Link>
+          <Link href="/buy" onClick={()=>setOpen(false)}>Buy coins</Link>
+          <div className="border-t border-white/10 pt-4">
+            {user? (
+              <div className="rounded-xl bg-white/10 p-3 text-white"><div className="text-xs text-zinc-400">{user.email}</div><div className="mt-1 font-semibold">{coins?? 0} coins</div></div>
+            ) : (
+              <Link href="/login" onClick={()=>setOpen(false)} className="block rounded-full bg-white py-3 text-center text-sm font-semibold text-black">Sign In / Create Account</Link>
+            )}
+          </div>
+        </div>
+      )}
+    </header>
+  )
 }
 
 function TournamentCard({ t }: { t: typeof tournaments[number] & { status?: string, winner_name?: string, finished_at?: string } }) {
-  // WINNER DISPLAY 7:40PM - 8PM
   if ((t as any).status === 'finished' && (t as any).winner_name) {
     const hour = new Date().getHours()
     if (hour >= 19 && hour < 20) {
       return (
         <article className={`${t.tone} rounded-[24px] p-5 text-black`}>
           <div className="text-center py-4">
-            <h1 className="text-sm font-bold uppercase tracking-widest">🏆 Today's Winner</h1>
+            <h1 className="text-sm font-bold uppercase tracking-widest">🏆 Today Winner</h1>
             <h2 className="text-3xl font-black mt-3">{(t as any).winner_name}</h2>
             <p className="text-xs mt-2 opacity-60">Ended at {(t as any).finished_at}</p>
-            <p className="text-xs mt-1 font-semibold">Next tournament tomorrow 7pm WAT</p>
+            <p className="text-xs mt-1 font-semibold">Next tomorrow 7pm WAT</p>
           </div>
         </article>
       )
@@ -51,7 +95,7 @@ function TournamentCard({ t }: { t: typeof tournaments[number] & { status?: stri
     if (isLive) { window.location.href = '/play/demo-match'; }
     else { const el = document.getElementById('watch-popup') as any; if (el) { el.style.display = 'flex'; } }
   }
-  return <article className={`${t.tone} rounded-[24px] p-5 text-black`}><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/50">{t.name} tournament</p><h3 className="mt-2 text-2xl font-semibold">Win <Coins>{t.prize.toLocaleString()}</Coins></h3></div><span className="rounded-full bg-black/10 px-3 py-1 text-xs font-semibold">Daily</span></div><div className="mt-8 flex items-end justify-between"><div className="text-sm text-black/55"><p>Entry</p><p className="mt-1 text-base font-semibold text-black"><Coins>{t.entry}</Coins></p></div><div className="text-right text-sm text-black/55"><p className="flex items-center justify-end gap-1"><Users className="size-3" />{t.joined}/32 joined</p><div className="mt-2 h-1.5 w-28 overflow-hidden rounded-full bg-black/10"><div className="h-full rounded-full bg-black" style={{ width: `${(t.joined / 32) * 100}%` }} /></div></div></div><div className="mt-5 flex gap-2"><Link href="/tournaments" className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-black py-3 text-sm font-semibold text-white">Join now <ArrowRight className="size-4" /></Link><button onClick={handleWatch} className="grid size-11 place-items-center rounded-xl bg-black/10"><Eye className="size-4" /></button></div></article>
+  return <article className={`${t.tone} rounded-[24px] p-5 text-black`}><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/50">{t.name} tournament</p><h3 className="mt-2 text-2xl font-semibold">Win <Coins>{t.prize.toLocaleString()}</Coins></h3></div><span className="rounded-full bg-black/10 px-3 py-1 text-xs font-semibold">Daily</span></div><div className="mt-8 flex items-end justify-between"><div className="text-sm text-black/55"><p>Entry</p><p className="mt-1 text-base font-semibold text-black"><Coins>{t.entry}</Coins></p></div><div className="text-right text-sm text-black/55"><p className="flex items-center justify-end gap-1"><Users className="size-3" />{t.joined}/32 joined</p><div className="mt-2 h-1.5 w-28 overflow-hidden rounded-full bg-black/10"><div className="h-full rounded-full bg-black" style={{ width: `${(t.joined / 32) * 100}%` }} /></div></div></div></div><div className="mt-5 flex gap-2"><Link href="/tournaments" className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-black py-3 text-sm font-semibold text-white">Join now <ArrowRight className="size-4" /></Link><button onClick={handleWatch} className="grid size-11 place-items-center rounded-xl bg-black/10"><Eye className="size-4" /></button></div></article>
 }
 
 export default function Page() {
