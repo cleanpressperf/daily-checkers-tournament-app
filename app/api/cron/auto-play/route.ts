@@ -1,78 +1,41 @@
 import { createClient } from '@supabase/supabase-js'
 export const dynamic = 'force-dynamic'
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY!)
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY! || process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY!)
 
-import { BOT_NAMES_96 } from '@/lib/bots' // if your file is elsewhere, change path
+const BOT_NAMES_96 = ["Marlo Stanfield","Thomas Shelby","Arthur Shelby","John Shelby","Finn","Michael Gray","Polly Gray","Ada Shelby","Isaiah","Jeremiah","Jimmy MC Cavin","Aberama Gold","Mrs. Changretta","Alfie Solomons","Luca Changretta","Shank","Michael Corleone","Vito Corleone","Sonny Corleone","Fredo Corleone","Tom Hagen","Don Barzini","Carlo Rizzi","Omar Little","Stringer Bell","Avon Barksdale","Jimmy McNulty","Lester Freamon","Proposition Joe","Franklin Saint","Leon Simmons","Jerome Saints","Louie Saints","Teddy McDonald","Manboy","Gustavo","Esme Shelby","Lizzie Stark","Freddie Thornes","Grace Burgess","May Carleton","Billy Kimber","Darby Sabini","Oswald Mosley","Winston Churchill","Johnny Dogs","Curly","Jack Nelson","Bodie Broadus","Slim","Snoop","Michael","D'Angelo","Fat Rick","Chris","Spider","Wee-bey Brice","Brother Mouzone","Bubble","Dukie","Namond Brice","Clay Davis","Bunk","Kima","Cheese","Hungry Man","Cutty","Skully","Ray-Ray","Connie Corleone","Kay Adams","Apollonia","Luca Brasi","Salvatore Tessio","Peter Clemenza","Moe Greene","Hyman Roth","Rothschild","Rocco Lampone","Don Fanucci","Vincent Mancini","Carmine Cuneo","Emilio Barzini","Johnny Fontane","Khadija","Wanda","Irene Abe","Matt McDonald","Cissy Saints","Kane Hamilton","Rob Volpe","Soledad","Parissa","Andre Wright","Claudia came","Kevin Hamilton"]
 
 export async function GET() {
   const now = new Date()
-
-  // 1. Get active tournament
   const { data: tournaments } = await supabase.from('tournaments').select('*').order('created_at',{ascending:false}).limit(1)
   let tournament = tournaments?.[0]
-
   if(!tournament){
-    // Create first tournament ever
-    const { data } = await supabase.from('tournaments').insert({ status: 'in_progress', current_round: 1 }).select().single()
+    const { data } = await supabase.from('tournaments').insert({ status: 'in_progress' }).select().single()
     tournament = data
   }
-
-  // 2. If tournament completed, check 30 min window
   if(tournament.status === 'completed'){
     const endedAt = new Date(tournament.completed_at || tournament.updated_at)
     const diffMins = (now.getTime() - endedAt.getTime()) / 60000
-
     if(diffMins < 30){
-      // STILL IN 30 MIN WINNER DISPLAY MODE - Eye page will show winner
       return Response.json({ ok:true, mode:'winner_display', winner: tournament.winner_name, remaining: Math.ceil(30-diffMins) })
     } else {
-      // 30 MINS OVER - START NEW TOURNAMENT
-      const { data: newT } = await supabase.from('tournaments').insert({ status: 'in_progress', current_round: 1 }).select().single()
-      // Clear old matches
-      await supabase.from('tournament_matches').delete().neq('id',0)
-      // Fill 32 random bots from 96
+      const { data: newT } = await supabase.from('tournaments').insert({ status: 'in_progress' }).select().single()
+      await supabase.from('tournament_matches').delete().gt('id',0)
       const shuffled = [...BOT_NAMES_96].sort(()=>0.5-Math.random()).slice(0,32)
-      const matches = shuffled.map((_,i)=> i%2===0? {
-        tournament_id: newT.id,
-        table_number: i/2+1,
-        round: 1,
-        player1_id: shuffled[i],
-        player2_id: shuffled[i+1],
-        status: 'playing'
-      } : null).filter(Boolean)
-      await supabase.from('tournament_matches').insert(matches as any)
+      const matches = []
+      for(let i=0;i<32;i+=2){
+        matches.push({ tournament_id: newT.id, table_number: (i/2)+1, round: 1, player1_id: shuffled[i], player2_id: shuffled[i+1], status: 'playing' })
+      }
+      await supabase.from('tournament_matches').insert(matches)
       return Response.json({ ok:true, mode:'new_tournament_started', id: newT.id })
     }
   }
-
-  // 3. Tournament in_progress - simulate it ending randomly (e.g., after ~50 mins)
   const startedAt = new Date(tournament.created_at)
   const runMins = (now.getTime() - startedAt.getTime()) / 60000
-
-  if(runMins > 55){ // End tournament after ~55 mins of playing
+  if(runMins > 55){
     const winner = BOT_NAMES_96[Math.floor(Math.random()*BOT_NAMES_96.length)]
-    await supabase.from('tournaments').update({
-      status: 'completed',
-      winner_name: winner,
-      completed_at: now.toISOString()
-    }).eq('id', tournament.id)
-
+    await supabase.from('tournaments').update({ status: 'completed', winner_name: winner, completed_at: now.toISOString() }).eq('id', tournament.id)
     return Response.json({ ok:true, mode:'tournament_ended', winner })
   }
-
-  // 4. Still playing - update live matches
-  const { data: liveMatches } = await supabase.from('tournament_matches').select('*').eq('tournament_id', tournament.id)
-  if(liveMatches){
-    for(const m of liveMatches){
-      if(Math.random()>0.7){
-        await supabase.from('tournament_matches').update({
-          winner_id: Math.random()>0.5? m.player1_id : m.player2_id,
-          status: 'completed'
-        }).eq('id', m.id)
-      }
-    }
-  }
-
   return Response.json({ ok:true, mode:'playing', runMins: Math.ceil(runMins) })
 }
