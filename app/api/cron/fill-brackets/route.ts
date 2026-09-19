@@ -10,12 +10,23 @@ const supabase = createClient(
 export async function GET() {
   try {
     const today = new Date().toISOString().split('T')[0]
+    const now = new Date().toISOString()
 
-    let { data: tournaments } = await supabase.from('tournaments').select('id').eq('date', today)
+    // 1. Find or CREATE tournament - 24/7 mode, no 19:00 wait
+    let { data: tournaments } = await supabase.from('tournaments').select('id').eq('date', today).limit(1)
 
     if (!tournaments || tournaments.length === 0) {
-      const { data: newT } = await supabase.from('tournaments').insert({ date: today, start_time: '19:00', status: 'live', name: `Test ${today}` }).select('id').single()
+      const { data: newT, error } = await supabase.from('tournaments').insert({
+        date: today,
+        start_time: now, // START NOW, not 19:00
+        status: 'live',
+        name: `Daily ${today}`
+      }).select('id').single()
+      if (error) throw error
       if (newT) tournaments = [newT]
+    } else {
+      // force existing tournament to live NOW
+      await supabase.from('tournaments').update({ status: 'live', start_time: now }).eq('id', tournaments[0].id)
     }
 
     if (!tournaments || tournaments.length === 0) {
@@ -24,6 +35,7 @@ export async function GET() {
 
     const tournament = tournaments[0]
 
+    // 2. Fill bots up to 32
     const { data: existing } = await supabase.from('tournament_players').select('id, username').eq('tournament_id', tournament.id)
     const need = 32 - (existing?.length || 0)
 
@@ -36,6 +48,7 @@ export async function GET() {
       if (bots.length > 0) await supabase.from('tournament_players').insert(bots)
     }
 
+    // 3. Create matches INSTANTLY if none
     const { count: matchCount } = await supabase.from('tournament_matches').select('*', { count: 'exact', head: true }).eq('tournament_id', tournament.id)
 
     if ((matchCount || 0) === 0) {
@@ -67,7 +80,7 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ success: true, tournament_id: tournament.id })
+    return NextResponse.json({ success: true, tournament_id: tournament.id, mode: "24/7 LIVE NOW" })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
