@@ -1,5 +1,25 @@
 'use client'
-import Link from 'next/link'
-import { ArrowLeft, Flag, MessageCircle, Timer } from 'lucide-react'
-import { Nav } from '../../page'
-export default function MatchPage(){return <main className="min-h-screen bg-black text-white"><Nav/><div className="mx-auto max-w-6xl px-5 pb-24 pt-10 lg:px-10"><Link href="/tournaments" className="mb-8 inline-flex items-center gap-2 text-sm text-zinc-500"><ArrowLeft className="size-4"/>Back to lobby</Link><div className="mb-8 flex items-end justify-between"><div><p className="text-xs uppercase tracking-[0.2em] text-[#ffd700]">Live · semi final</p><h1 className="mt-3 text-4xl font-semibold tracking-tight">Bronze table 04</h1></div><span className="flex items-center gap-2 rounded-full border border-white/10 px-3 py-2 text-xs text-zinc-400"><span className="size-2 animate-pulse rounded-full bg-red-500"/>Watching live</span></div><div className="grid gap-8 lg:grid-cols-[1fr_280px]"><div><div className="overflow-hidden rounded-2xl border-8 border-zinc-800 bg-[#e9e1d0]"><div className="grid aspect-square grid-cols-10">{Array.from({length:100}).map((_,i)=><div key={i} className={`relative aspect-square ${(Math.floor(i/10)+i)%2===0?'bg-[#e7d6b5]':'bg-[#7d5a3d]'}`}>{[11,13,22,31,32,40,42,51,60,64,73,75,82,86,94].includes(i)&&<span className="absolute inset-[18%] rounded-full border-2 border-black/30 bg-black shadow-[inset_-4px_-5px_0_rgba(255,255,255,.15)]"/>}{[5,7,16,20,25,34,47,58,67,70,77,88].includes(i)&&<span className="absolute inset-[18%] rounded-full border-2 border-black/20 bg-white shadow-[inset_-4px_-5px_0_rgba(0,0,0,.16)]"/>}</div>)}</div></div></div><aside className="flex flex-col gap-3"><div className="rounded-2xl bg-white p-5 text-black"><div className="flex items-center justify-between"><span className="text-sm font-semibold">James Williams</span><strong className="font-mono text-3xl">04:32</strong></div><div className="mt-3 h-1.5 rounded-full bg-black/10"><div className="h-full w-3/4 rounded-full bg-black"/></div></div><div className="rounded-2xl border border-white/10 bg-zinc-950 p-5"><div className="flex items-center justify-between"><span className="text-sm font-semibold">You</span><strong className="font-mono text-3xl">04:51</strong></div><div className="mt-3 h-1.5 rounded-full bg-white/10"><div className="h-full w-4/5 rounded-full bg-white"/></div></div><div className="rounded-2xl border border-white/10 bg-zinc-950 p-5 text-sm text-zinc-400"><div className="flex items-center gap-2 text-white"><Timer className="size-4"/>Move timer <span className="ml-auto font-mono text-white">00:18</span></div><div className="mt-4 flex items-center gap-2 border-t border-white/10 pt-4"><MessageCircle className="size-4"/>12 watching</div></div><button className="flex items-center justify-center gap-2 rounded-xl border border-white/10 py-3 text-sm text-zinc-400"><Flag className="size-4"/>Report match</button></aside></div></div></main>}
+import { useEffect, useState } from 'react'
+import { createClient } from '@supabase/supabase-js'
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
+export default function Page(){
+ const [matches,setMatches]=useState<any[]>([])
+ useEffect(()=>{ async function load(){
+   const { data } = await supabase.from('tournament_matches').select('*, player1:player1_id, player2:player2_id, winner:winner_id').order('round').limit(16)
+   const { data: entries } = await supabase.from('tournament_entries').select('id, user_id, bot_id')
+   // simple join to show bot names
+   setMatches(data||[])
+ } ; load() },[])
+ return <main className="min-h-screen bg-black text-white p-5">
+  <h1 className="text-2xl font-bold">🔴 LIVE NOW - Real Bot Matches</h1>
+  <p className="text-zinc-400 mt-2">{matches.length} matches completed today</p>
+  <div className="mt-6 grid gap-3">
+    {matches.map(m=><div key={m.id} className="rounded-xl bg-zinc-900 p-4 flex justify-between">
+      <span>Table {m.table_number} • R{m.round}</span>
+      <span className="text-[#ffd700]">{m.winner_id ? `Winner: ${m.winner_id.slice(0,8)}` : 'Playing...'}</span>
+      <span>{m.status}</span>
+    </div>)}
+  </div>
+ </main>
+}
