@@ -1,8 +1,7 @@
 'use client'
-
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
-import { ArrowRight, ChevronDown, CircleDollarSign, Clock3, Eye, Menu, Play, Shield, Sparkles, Trophy, Users, X } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Trophy, Menu, X, Clock3 } from 'lucide-react'
 
 const tournaments = [
   { name: 'Bronze', entry: 300, prize: 3000, joined: 24, tone: 'bg-[#f3f3f3]' },
@@ -10,73 +9,78 @@ const tournaments = [
   { name: 'Gold', entry: 1000, prize: 15000, joined: 29, tone: 'bg-[#e9e5d5]' },
 ]
 
-function Coins({ children }: { children: React.ReactNode }) {
-  return <span className="inline-flex items-center gap-1 font-semibold"><CircleDollarSign className="size-4 text-[#d4a900]" />{children}</span>
-}
+function Coins({ children }: any) { return <span>{children} coins</span> }
 
 function Nav() {
   const [open, setOpen] = useState(false)
   return (
-    <header className="relative mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-5 lg:px-10">
-      <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight"><span className="grid size-9 place-items-center rounded-xl bg-white text-black"><Trophy className="size-5" /></span>BOARDROOM</Link>
-      <nav className="hidden items-center gap-8 text-sm text-zinc-400 md:flex">
-        <Link className="text-white" href="/">Home</Link>
+    <header className="relative mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-5">
+      <Link href="/" className="font-bold flex gap-2 items-center"><span className="bg-white text-black grid place-items-center size-9 rounded-xl"><Trophy className="size-5" /></span>BOARDROOM</Link>
+      <nav className="hidden md:flex gap-6 text-sm text-zinc-400">
+        <Link href="/" className="text-white">Home</Link>
         <Link href="/tournaments">Tournaments</Link>
         <Link href="/practice">Practice</Link>
         <Link href="/buy">Buy coins</Link>
-        <Link href="/login" className="rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-black">Sign In</Link>
+        <Link href="/login" className="bg-white text-black px-4 py-1.5 rounded-full">Sign In</Link>
       </nav>
-      <div className="flex items-center gap-2">
-        <Link href="/login" className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black">Sign In</Link>
-        <button aria-label="Open menu" onClick={() => setOpen(!open)} className="grid size-9 place-items-center rounded-full border border-white/10 md:hidden">{open? <X className="size-4" /> : <Menu className="size-4" />}</button>
+      <div className="flex gap-2 items-center">
+        <Link href="/login" className="bg-white text-black px-4 py-2 rounded-full text-sm font-semibold">Sign In</Link>
+        <button onClick={()=>setOpen(!open)} className="md:hidden grid size-9 place-items-center border border-white/10 rounded-full">{open? <X className="size-4"/> : <Menu className="size-4"/>}</button>
       </div>
       {open && (
-        <div className="absolute left-5 right-5 top-20 z-20 flex flex-col gap-4 rounded-2xl border border-white/10 bg-zinc-950 p-5 text-sm shadow-2xl md:hidden">
-          <Link href="/tournaments" onClick={() => setOpen(false)}>Tournaments</Link>
-          <Link href="/practice" onClick={() => setOpen(false)}>Practice</Link>
-          <Link href="/buy" onClick={() => setOpen(false)}>Buy coins</Link>
-          <Link href="/login" onClick={() => setOpen(false)} className="rounded-full bg-white px-4 py-2 text-center text-sm font-semibold text-black">Sign In</Link>
+        <div className="absolute left-5 right-5 top-20 z-50 bg-zinc-950 border border-white/10 rounded-2xl p-5 flex flex-col gap-4 md:hidden">
+          <Link href="/tournaments" onClick={()=>setOpen(false)}>Tournaments</Link>
+          <Link href="/practice" onClick={()=>setOpen(false)}>Practice</Link>
+          <Link href="/buy" onClick={()=>setOpen(false)}>Buy coins</Link>
+          <Link href="/login" onClick={()=>setOpen(false)} className="bg-white text-black py-3 rounded-full text-center">Sign In</Link>
         </div>
       )}
     </header>
   )
 }
 
-function TournamentCard({ t }: { t: any }) {
-  if (t.status === 'finished' && t.winner_name) {
-    const hour = new Date().getHours()
-    if (hour >= 19 && hour < 20) {
-      return (
-        <article className={t.tone + ' rounded-[24px] p-5 text-black'}>
-          <div className="text-center py-4">
-            <h1 className="text-sm font-bold uppercase tracking-widest">Today&apos;s Winner</h1>
-            <h2 className="text-3xl font-black mt-3">{t.winner_name}</h2>
-            <p className="text-xs mt-2 opacity-60">Ended at {t.finished_at}</p>
-            <p className="text-xs mt-1 font-semibold">Next tournament tomorrow 7pm WAT</p>
-          </div>
-        </article>
-      )
-    }
-  }
-
-  function handleWatch(e: any) {
-    e.preventDefault()
-    const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Lagos', hour12: false, hour: '2-digit' }).formatToParts(new Date())
-    const h = Number(parts.find((p) => p.type === 'hour')?.value || 0)
-    const isLive = h >= 19 && h < 20
-    if (isLive) {
-      window.location.href = '/play/demo-match'
-    } else {
-      const el = document.getElementById('watch-popup') as any
-      if (el) el.style.display = 'flex'
-    }
-  }
-
-  const widthPercent = (t.joined / 32) * 100 + '%'
-
+function TournamentCard({ t }: any) {
+  const w = (t.joined / 32) * 100 + '%'
   return (
-    <article className={t.tone + ' rounded-[24px] p-5 text-black'}>
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/50">{t.name} tournament</p>
-          <h3 className="mt-2 text-2xl font-semibold">Win
+    <div className={t.tone + ' rounded-[24px] p-5 text-black'}>
+      <p className="text-xs uppercase">{t.name}</p>
+      <h3 className="text-2xl font-semibold mt-2">Win {t.prize}</h3>
+      <p className="mt-4 text-sm">Entry {t.entry} | {t.joined}/32</p>
+      <div className="mt-2 h-1.5 w-28 bg-black/10 rounded-full overflow-hidden"><div className="h-full bg-black" style={{width: w}} /></div>
+      <Link href="/tournaments" className="mt-4 block bg-black text-white py-3 rounded-xl text-center">Join now</Link>
+    </div>
+  )
+}
+
+export default function Page() {
+  const [sec, setSec] = useState(0)
+  useEffect(()=>{
+    const get = ()=>{
+      const now = new Date()
+      const p = new Intl.DateTimeFormat('en-US',{timeZone:'Africa/Lagos',hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'}).formatToParts(now)
+      const cur = Number(p.find(x=>x.type==='hour')?.value||0)*3600+Number(p.find(x=>x.type==='minute')?.value||0)*60+Number(p.find(x=>x.type==='second')?.value||0)
+      return (19*3600 - cur + 24*3600) % (24*3600)
+    }
+    const up = ()=> setSec(get())
+    up()
+    const id = setInterval(up,1000)
+    return ()=> clearInterval(id)
+  },[])
+  const h = String(Math.floor(sec/3600)).padStart(2,'0')
+  const m = String(Math.floor((sec%3600)/60)).padStart(2,'0')
+  const s = String(sec%60).padStart(2,'0')
+  return (
+    <main className="min-h-screen bg-black text-white">
+      <Nav />
+      <section className="max-w-7xl mx-auto px-5 py-16">
+        <h1 className="text-5xl font-semibold">The board is set.</h1>
+        <div className="mt-6 flex items-center gap-2 text-sm text-zinc-400"><Clock3 className="size-4" /> Next in {h}:{m}:{s}</div>
+        <div className="mt-10 grid md:grid-cols-3 gap-4">
+          {tournaments.map(t=> <TournamentCard key={t.name} t={t} />)}
+        </div>
+      </section>
+    </main>
+  )
+}
+
+export { tournaments, Coins, Nav, TournamentCard }
