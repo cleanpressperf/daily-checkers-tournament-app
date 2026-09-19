@@ -6,7 +6,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   { auth: { persistSession: false } }
 )
-
+ 
 const BOT_NAMES = Array.from({length:96},(_,i)=>`Bot_${i+1}`)
 
 export async function GET() {
