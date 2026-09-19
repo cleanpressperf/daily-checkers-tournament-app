@@ -3,17 +3,16 @@ import { createClient } from '@supabase/supabase-js'
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 export async function GET() {
   const r:any = {}
-  const { data: t } = await supabase.from('tournaments').select('id').eq('name','Bronze').single()
-  const tid = t?.id
+  const { data: tours } = await supabase.from('tournaments').select('*')
+  r.all_tournaments = tours
 
-  // Find next required for tournament_entries
-  const fakeUser = '00000000-0000-0000-0000-000000000000'
-  const { error: e1 } = await supabase.from('tournament_entries').insert({ tournament_id: tid, user_id: fakeUser } as any)
-  r.tournament_entries_next = e1?.message
+  const { data: usersList, error } = await supabase.auth.admin.listUsers()
+  r.users_count = usersList?.users?.length
+  r.first_users = usersList?.users?.slice(0,3).map(u => ({ id: u.id, email: u.email }))
+  r.users_error = error?.message
 
-  // Find next required for matches
-  const { error: e2 } = await supabase.from('matches').insert({ tournament_id: tid, round: 1 } as any)
-  r.matches_next = e2?.message
+  const { data: entries } = await supabase.from('tournament_entries').select('*').limit(5)
+  r.entries_sample = entries
 
   return NextResponse.json(r)
 }
