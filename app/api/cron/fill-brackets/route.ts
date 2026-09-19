@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { BOT_NAMES_96 } from '@/lib/bots/names'
+
+const BOT_NAMES_96 = [
+"Marlo Stanfield","Thomas Shelby","Arthur Shelby","John Shelby","Finn","Michael Gray","Polly Gray","Ada Shelby","Isaiah","Jeremiah","Jimmy MC Cavin","Aberama Gold","Mrs. Changretta","Alfie Solomons","Luca Changretta","Shank","Michael Corleone","Vito Corleone","Sonny Corleone","Fredo Corleone","Tom Hagen","Don Barzini","Carlo Rizzi","Omar Little","Stringer Bell","Avon Barksdale","Jimmy McNulty","Lester Freamon","Proposition Joe","Franklin Saint","Leon Simmons","Jerome Saints","Louie Saints","Teddy McDonald","Manboy","Gustavo","Esme Shelby","Lizzie Stark","Freddie Thornes","Grace Burgess","May Carleton","Billy Kimber","Darby Sabini","Oswald Mosley","Winston Churchill","Johnny Dogs","Curly","Jack Nelson","Bodie Broadus","Slim","Snoop","Michael","D'Angelo","Fat Rick","Chris","Spider","Wee-bey Brice","Brother Mouzone","Bubble","Dukie","Namond Brice","Clay Davis","Bunk","Kima","Cheese","Hungry Man","Cutty","Skully","Ray-Ray","Connie Corleone","Kay Adams","Apollonia","Luca Brasi","Salvatore Tessio","Peter Clemenza","Moe Greene","Hyman Roth","Rothschild","Rocco Lampone","Don Fanucci","Vincent Mancini","Carmine Cuneo","Emilio Barzini","Johnny Fontane","Khadija","Wanda","Irene Abe","Matt McDonald","Cissy Saints","Kane Hamilton","Rob Volpe","Soledad","Parissa","Andre Wright","Claudia came","Kevin Hamilton"
+]
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,10 +15,10 @@ export async function GET() {
     const today = new Date().toISOString().split('T')[0]
 
     const { data: tournaments } = await supabase
-    .from('tournaments')
-    .select('id')
-    .eq('date', today)
-    .order('start_time')
+   .from('tournaments')
+   .select('id')
+   .eq('date', today)
+   .order('start_time')
 
     if (!tournaments || tournaments.length === 0) {
       return NextResponse.json({ message: 'No tournaments today' })
@@ -31,17 +34,15 @@ export async function GET() {
     for (let i = 0; i < tournaments.length; i++) {
       const t = tournaments[i]
 
-      // 1. Count existing players
       const { data: existing } = await supabase
-      .from('tournament_players')
-      .select('id, username')
-      .eq('tournament_id', t.id)
+     .from('tournament_players')
+     .select('id, username')
+     .eq('tournament_id', t.id)
 
       const need = 32 - (existing?.length || 0)
 
       if (need > 0) {
         const namesToUse = chunks[i] || chunks[0]
-        // Avoid duplicate names
         const existingNames = new Set(existing?.map(p => p.username))
         const available = namesToUse.filter(n =>!existingNames.has(n))
         const toAdd = available.slice(0, need)
@@ -58,45 +59,45 @@ export async function GET() {
         }
       }
 
-      // 2. CREATE GAMES IF NOT EXIST
-      const { count: gameCount } = await supabase
-      .from('tournament_games')
-      .select('*', { count: 'exact', head: true })
-      .eq('tournament_id', t.id)
+      const { count: matchCount } = await supabase
+     .from('tournament_matches')
+     .select('*', { count: 'exact', head: true })
+     .eq('tournament_id', t.id)
 
-      if ((gameCount || 0) === 0) {
+      if ((matchCount || 0) === 0) {
         const { data: allPlayers } = await supabase
-        .from('tournament_players')
-        .select('id')
-        .eq('tournament_id', t.id)
+       .from('tournament_players')
+       .select('id, username')
+       .eq('tournament_id', t.id)
 
         if (allPlayers && allPlayers.length >= 2) {
           const playersShuffled = [...allPlayers].sort(() => Math.random() - 0.5)
-          const gamesToInsert = []
+          const matchesToInsert = []
 
-          // 8 tables of 4 players each
           for (let table = 0; table < 8; table++) {
             const tablePlayers = playersShuffled.slice(table * 4, (table + 1) * 4)
             if (tablePlayers.length < 2) continue
 
             for (let a = 0; a < tablePlayers.length; a++) {
               for (let b = a + 1; b < tablePlayers.length; b++) {
-                gamesToInsert.push({
+                matchesToInsert.push({
                   tournament_id: t.id,
+                  player1_username: tablePlayers[a].username,
+                  player2_username: tablePlayers[b].username,
+                  player1_id: tablePlayers[a].id,
+                  player2_id: tablePlayers[b].id,
                   table_number: table + 1,
-                  player_white_id: tablePlayers[a].id,
-                  player_black_id: tablePlayers[b].id,
-                  status: 'playing',
-                  current_turn: 'white',
-                  board_state: 'start_10x10' // replace with your actual initial FEN/board
+                  round: `Table ${table+1} Group Stage`,
+                  status: 'live',
+                  current_turn: 'player1',
+                  board_fen: 'startpos'
                 })
               }
             }
           }
 
-          if (gamesToInsert.length > 0) {
-            const { error } = await supabase.from('tournament_games').insert(gamesToInsert)
-            if (error) console.log('game insert error', error.message)
+          if (matchesToInsert.length > 0) {
+            await supabase.from('tournament_matches').insert(matchesToInsert)
           }
         }
       }
