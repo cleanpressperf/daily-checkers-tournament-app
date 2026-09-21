@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { ArrowRight, CircleDollarSign, Eye, Users } from 'lucide-react'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key')
 
 function Coins({ children }: { children: React.ReactNode }) {
   return <span className="inline-flex items-center gap-1 font-semibold"><CircleDollarSign className="size-4 text-[#d4a900]" />{children}</span>
@@ -44,7 +44,7 @@ export default function TournamentsPage(){
       if(!data) return
       const withCounts = await Promise.all(data.map(async (tt:any)=>{
         const { count } = await supabase.from('tournament_entries').select('*', {count:'exact', head:true}).eq('tournament_id', tt.id)
-        return { name: tt.name, entry: tt.entry_coins, prize: tt.prize_naira, joined: count||32, max_players: tt.max_players, status: tt.status }
+        return { name: tt.name, entry: tt.entry_coins, prize: tt.prize_naira, joined: count ?? 0, max_players: tt.max_players, status: tt.status }
       }))
       setTours(withCounts.sort((a,b)=>a.entry-b.entry))
     }
