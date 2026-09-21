@@ -26,13 +26,24 @@ export async function GET() {
     tournaments = data ?? []
   }
 
+  const { data: users, error: usersError } = await db.from('users').select('*').limit(96)
+  if (usersError) return NextResponse.json({ error: usersError.message }, { status: 500 })
+  const realPlayers = (users ?? []).map((user: Record<string, unknown>, index) => ({
+    user_id: String(user.id ?? user.user_id ?? ''),
+    bot_name: String(user.display_name ?? user.username ?? user.name ?? user.email ?? `Player ${index + 1}`),
+  })).filter((player) => player.user_id)
+  const players = realPlayers.length >= 96
+    ? realPlayers.slice(0, 96)
+    : BOT_NAMES_96.map((bot_name, index) => realPlayers[index] ?? { user_id: `bot-${index + 1}`, bot_name })
+
   const results: { tournament: string; filled: number; matches: number }[] = []
   for (const [tournamentIndex, tournament] of tournaments.slice(0, 3).entries()) {
+    const desiredPlayers = players.slice(tournamentIndex * 32, tournamentIndex * 32 + 32)
     const { data: current, error: entriesError } = await db.from('tournament_entries').select('id,user_id,is_bot,bot_name').eq('tournament_id', tournament.id).order('id')
     if (entriesError) return NextResponse.json({ error: entriesError.message }, { status: 500 })
     const entries = current ?? []
-    const names = BOT_NAMES_96.slice(tournamentIndex * 32, tournamentIndex * 32 + 32)
-    const additions = names.filter((name) => !entries.some((entry) => entry.bot_name === name)).slice(0, Math.max(0, 32 - entries.length)).map((bot_name) => ({ tournament_id: tournament.id, user_id: null, is_bot: true, bot_name, status: 'registered' }))
+    const existingIds = new Set(entries.map((entry) => entry.user_id).filter(Boolean))
+    const additions = desiredPlayers.filter((player) => !existingIds.has(player.user_id)).slice(0, Math.max(0, 32 - entries.length)).map((player) => ({ tournament_id: tournament.id, user_id: player.user_id, is_bot: !realPlayers.some((real) => real.user_id === player.user_id), bot_name: player.bot_name, status: 'registered' }))
     if (additions.length) {
       const { error: addError } = await db.from('tournament_entries').insert(additions)
       if (addError) return NextResponse.json({ error: addError.message }, { status: 500 })
@@ -45,10 +56,12 @@ export async function GET() {
     for (let index = 0; index < all.length; index += 2) {
       const first = all[index], second = all[index + 1]
       if (!second) continue
-      matches.push({ tournament_id: tournament.id, round: 'Round 1', player1: first.user_id, player2: second.user_id, player1_name: first.bot_name || 'Player 1', player2_name: second.bot_name || 'Player 2', table_number: index / 2 + 1, board: initialBoard(), board_state: initialBoard(), move_number: 0, last_move_at: new Date().toISOString(), status: 'playing' })
+      const board = initialBoard()
+      matches.push({ tournament_id: tournament.id, round: 'Round 1', player1: first.user_id, player2: second.user_id, player1_name: first.bot_name || 'Player 1', player2_name: second.bot_name || 'Player 2', table_number: index / 2 + 1, board, board_state: board, move_number: 0, last_move_at: new Date().toISOString(), status: 'playing' })
     }
     const { error: matchError } = await db.from('matches').insert(matches)
     if (matchError) return NextResponse.json({ error: matchError.message }, { status: 500 })
+    await db.from('tournaments').update({ status: 'playing' }).eq('id', tournament.id)
     results.push({ tournament: tournament.name, filled: all.length, matches: matches.length })
   }
   return NextResponse.json({ ok: true, results })

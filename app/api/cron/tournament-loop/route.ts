@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { initialBoard } from '@/lib/draughts'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,8 +15,29 @@ export async function GET() {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   const champions = []
   for (const tournament of tournaments ?? []) {
-    const { data: finished } = await db.from('matches').select('winner_name').eq('tournament_id', tournament.id).eq('status', 'completed').not('winner_name', 'is', null).order('last_move_at', { ascending: false }).limit(1)
-    const winner = finished?.[0]?.winner_name
+    const { data: playing } = await db.from('matches').select('id').eq('tournament_id', tournament.id).eq('status', 'playing').limit(1)
+    if (playing?.length) continue
+
+    const { data: completed } = await db.from('matches').select('round,winner_name,player1_name,player2_name,player1,player2').eq('tournament_id', tournament.id).eq('status', 'completed').not('winner_name', 'is', null).order('round').order('last_move_at', { ascending: false })
+    if (!completed?.length) continue
+    const roundNumbers = completed.map((match) => Number(String(match.round).replace(/\\D/g, '')) || 1)
+    const currentRound = Math.max(...roundNumbers)
+    const finalists = completed.filter((match) => (Number(String(match.round).replace(/\\D/g, '')) || 1) === currentRound).map((match) => match.winner_name).filter(Boolean)
+    if (finalists.length > 1) {
+      const nextRound = `Round ${currentRound + 1}`
+      const { data: existingNext } = await db.from('matches').select('id').eq('tournament_id', tournament.id).eq('round', nextRound).limit(1)
+      if (!existingNext?.length) {
+        const nextMatches = []
+        for (let index = 0; index < finalists.length; index += 2) {
+          if (!finalists[index + 1]) continue
+          const board = initialBoard()
+          nextMatches.push({ tournament_id: tournament.id, round: nextRound, player1_name: finalists[index], player2_name: finalists[index + 1], table_number: index / 2 + 1, board, board_state: board, move_number: 0, last_move_at: new Date().toISOString(), status: 'playing' })
+        }
+        if (nextMatches.length) await db.from('matches').insert(nextMatches)
+      }
+      continue
+    }
+    const winner = finalists[0]
     if (!winner) continue
     const trophy_url = `/trophies/${String(tournament.name).toLowerCase()}.png`
     const update = await db.from('tournaments').update({ champion_name: winner, prize: prizes[tournament.name] ?? '$500', trophy_url, status: 'finished' }).eq('id', tournament.id)

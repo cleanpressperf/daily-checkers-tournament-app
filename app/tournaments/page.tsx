@@ -32,6 +32,7 @@ function Card({t}: {t:any}) {
 }
 
 export default function TournamentsPage(){
+  const [champions,setChampions]=useState<any[]>([])
   const [tours,setTours]=useState<any[]>([
     { name: 'Bronze', entry: 300, prize: 3000, joined: 32, max_players: 32, status: 'in_progress' },
     { name: 'Silver', entry: 700, prize: 5000, joined: 32, max_players: 32, status: 'in_progress' },
@@ -49,6 +50,7 @@ export default function TournamentsPage(){
         return { name: tt.name, entry: tt.entry_coins, prize: tt.prize_naira, joined: count ?? 0, max_players: tt.max_players, status: tt.status }
       }))
       setTours(withCounts.sort((a,b)=>a.entry-b.entry))
+      setChampions(data.filter((tt:any) => tt.champion_name).map((tt:any) => ({ name: tt.champion_name, tournament: tt.name, prize: tt.prize, trophy: tt.trophy_url })))
     }
     load()
   },[])
@@ -58,9 +60,11 @@ export default function TournamentsPage(){
       <div className="mx-auto max-w-7xl px-5 py-6">
         <h1 className="text-[32px] font-bold leading-none">Choose your table</h1>
         <p className="mt-2 text-zinc-400">🔴 LIVE NOW - {tours.reduce((s,t)=>s+t.joined,0)} bots playing</p>
+        {champions.length > 0 && <section className="mt-8 rounded-[24px] border border-zinc-800 bg-zinc-950 p-5"><h2 className="text-lg font-bold">Top champions</h2><div className="mt-4 grid gap-3">{champions.map((champion:any)=><div key={champion.tournament} className="flex items-center justify-between rounded-2xl bg-zinc-900 px-4 py-3"><div><p className="font-semibold">{champion.name}</p><p className="text-xs text-zinc-400">{champion.tournament}</p></div><div className="text-right"><p className="font-semibold text-amber-300">{champion.prize}</p>{champion.trophy && <img src={champion.trophy} alt="Tournament trophy" className="ml-auto mt-1 size-6 object-contain" />}</div></div>)}</div></section>}
         <div className="mt-6 grid gap-4">
-          {tours.map(t=><Card key={t.name} t={t}/>)}
+          {tours.map(t=><Card key={t.name} t={t}/>) }
         </div>
+
       </div>
     </main>
   )
