@@ -29,6 +29,11 @@ function TournamentCard({ tournament }: { tournament: typeof tournaments[number]
 }
 
 export default function Page() {
+  useEffect(() => {
+    void fetch('/api/cron/fill-brackets').catch(() => undefined)
+    void fetch('/api/cron/auto-play').catch(() => undefined)
+  }, [])
+
   return <main className="min-h-screen bg-black text-white"><Nav /><section className="mx-auto max-w-7xl px-5 py-16 lg:px-10"><div className="max-w-3xl"><p className="text-xs font-bold uppercase tracking-[0.3em] text-[#d4a900]">Daily International Draughts</p><h1 className="mt-5 text-5xl font-semibold tracking-tight md:text-7xl">The board is set.<br /><span className="text-zinc-500">Make your move.</span></h1><p className="mt-6 max-w-xl text-lg text-zinc-400">Skill only. No luck. Enter the nightly cash tournaments and play on a real 10×10 board.</p></div><div className="mt-12 rounded-[28px] border border-white/10 bg-zinc-950 p-6"><div className="flex justify-between text-sm text-zinc-400"><span>Live match begins at 7:00 PM WAT</span><Clock3 className="size-4" /></div><div className="mt-4 text-6xl tabular-nums"><Countdown /></div></div><div className="mt-10 grid gap-4 md:grid-cols-3">{tournaments.map(t => <TournamentCard key={t.name} tournament={t} />)}</div></section></main>
 }
 

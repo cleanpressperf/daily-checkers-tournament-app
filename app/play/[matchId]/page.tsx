@@ -1,33 +1,37 @@
 'use client'
+
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
-import { createClient } from '@supabase/supabase-js'
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-export default function Page(){
- const [matches,setMatches]=useState<any[]>([])
- useEffect(()=>{
-  async function load(){
-   const { data } = await supabase.from('tournament_matches').select('*').order('created_at', {ascending:false}).limit(20)
-   setMatches(data||[])
-  }
-  load()
- },[])
- return (
-  <main className="min-h-screen bg-black text-white p-5">
-   <Link href="/" className="inline-flex items-center gap-2 text-zinc-400"><ArrowLeft className="size-4"/>Back</Link>
-   <h1 className="mt-8 text-2xl font-bold">🔴 LIVE NOW - Real Bot Matches</h1>
-   <p className="mt-2 text-zinc-400">{matches.length} matches today • 32/32 bots</p>
-   <div className="mt-6 grid gap-3">
-     {matches.length===0 && <p className="text-zinc-500">No matches yet - bots will auto-play at 7PM WAT</p>}
-     {matches.map(m=>(
-       <div key={m.id} className="flex justify-between rounded-xl bg-zinc-900 p-4 text-sm">
-         <span>Table {m.table_number || 1} • R{m.round || 1}</span>
-         <span className="text-[#ffd700]">{m.winner_id? `Winner: ${String(m.winner_id).slice(0,8)}` : 'Playing...'}</span>
-         <span className="capitalize">{m.status || 'in_progress'}</span>
-       </div>
-     ))}
-   </div>
+import { ArrowLeft, Eye } from 'lucide-react'
+
+export default function LiveMatchPage({ params }: { params: Promise<{ matchId: string }> }) {
+  const [match, setMatch] = useState<any>(null)
+  const [updatedAt, setUpdatedAt] = useState('')
+
+  useEffect(() => {
+    let active = true
+    const load = async () => {
+      const response = await fetch(`/api/matches/${params.then ? (await params).matchId : ''}`, { cache: 'no-store' })
+      if (!response.ok || !active) return
+      const data = await response.json()
+      setMatch(data.match)
+      setUpdatedAt(new Date().toLocaleTimeString())
+    }
+    void load()
+    const timer = window.setInterval(() => void load(), 2000)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [params])
+
+  return <main className="min-h-screen bg-black p-5 text-white">
+    <Link href="/tournaments" className="inline-flex items-center gap-2 text-zinc-400"><ArrowLeft className="size-4" />Back</Link>
+    <div className="mx-auto max-w-5xl py-10">
+      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.22em] text-red-400"><Eye className="size-4" />Live viewer · polling every 2s</div>
+      <h1 className="mt-3 text-3xl font-bold">{match?.player1_name || 'Player 1'} vs {match?.player2_name || 'Player 2'}</h1>
+      <p className="mt-2 text-zinc-400">Table {match?.table_number || '—'} · Round {match?.round || '—'} · {match?.status || 'connecting'}</p>
+      <div className="mt-8 grid aspect-square max-w-[620px] grid-cols-10 overflow-hidden rounded-2xl border border-white/10 bg-[#d8b46a] shadow-2xl">
+        {Array.from({ length: 100 }, (_, index) => <div key={index} className={`grid place-items-center ${(Math.floor(index / 10) + index) % 2 === 0 ? 'bg-[#f1d89d]' : 'bg-[#6b482f]'}`}><span className="text-lg">{String(match?.board?.[index] || '')}</span></div>)}
+      </div>
+      <p className="mt-4 text-xs text-zinc-500">Last update: {updatedAt || 'waiting'} · Move {match?.move_number || 0}</p>
+    </div>
   </main>
- )
 }

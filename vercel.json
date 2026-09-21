@@ -1,12 +1,6 @@
 {
   "crons": [
-    {
-      "path": "/api/cron/fill-brackets",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/cron/auto-play",
-      "schedule": "*/2 * * * *"
-    }
+    { "path": "/api/cron/fill-brackets", "schedule": "0 * * * *" },
+    { "path": "/api/cron/auto-play", "schedule": "0 * * * *" }
   ]
 }

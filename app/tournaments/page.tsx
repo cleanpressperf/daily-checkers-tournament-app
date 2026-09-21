@@ -39,6 +39,8 @@ export default function TournamentsPage(){
   ])
 
   useEffect(()=>{
+    void fetch('/api/cron/fill-brackets').catch(() => undefined)
+    void fetch('/api/cron/auto-play').catch(() => undefined)
     async function load(){
       const { data } = await supabase.from('tournaments').select('*')
       if(!data) return
