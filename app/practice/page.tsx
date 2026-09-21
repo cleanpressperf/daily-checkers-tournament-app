@@ -43,7 +43,7 @@ export default function PracticePage(){
     setStatus(`Bot thinking... (${level})`)
 
     const timer = setTimeout(()=>{
-      const mv = botMove(board, level)
+      const mv = botMove(board)
       const elapsed = Date.now() - startTime
       const minWait = 2000 // minimum 2 seconds
       const remaining = Math.max(0, minWait - elapsed)
