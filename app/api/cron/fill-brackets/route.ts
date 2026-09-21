@@ -18,9 +18,9 @@ const db = createClient(
 
 export async function GET() {
   const today = new Date().toISOString().slice(0, 10)
-  const { data: existing, error } = await db.from('tournaments').select('*').eq('date', today).order('entry_coins')
+  const { data: existing, error } = await db.from('tournaments').select('*').in('status', ['open', 'upcoming', 'registering']).order('entry_coins')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
+  console.log('[v0] fill-brackets tournaments count:', existing?.length ?? 0)
   let tournaments = existing ?? []
   if (!tournaments.length) {
     return NextResponse.json({ error: 'No tournaments found for today; refusing to invent prize amounts.' }, { status: 409 })
@@ -44,8 +44,9 @@ export async function GET() {
     const matches = []
     for (let index = 0; index < 32; index += 2) {
       const first = all[index], second = all[index + 1]
-      if (!first || !second) continue
-      matches.push({ tournament_id: tournament.id, round: 'Round 1', player1: first.user_id, player2: second.user_id, player1_name: first.bot_name ?? 'You', player2_name: second.bot_name ?? 'You', table_number: index / 2 + 1, board: initialBoard(), move_number: 0, last_move_at: new Date().toISOString(), status: 'playing' })
+      if (!second) continue
+      const board = initialBoard()
+      matches.push({ tournament_id: tournament.id, round: 'Round 1', player1: first.user_id, player2: second.user_id, player1_name: first.bot_name || 'Player 1', player2_name: second.bot_name || 'Player 2', table_number: index / 2 + 1, board, board_state: board, move_number: 0, last_move_at: new Date().toISOString(), status: 'playing' })
     }
     if (matches.length) await db.from('matches').insert(matches)
 
