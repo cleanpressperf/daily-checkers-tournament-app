@@ -1,6 +1,7 @@
 {
   "crons": [
     { "path": "/api/cron/fill-brackets", "schedule": "0 0 * * *" },
-    { "path": "/api/cron/auto-play", "schedule": "0 0 * * *" }
+    { "path": "/api/cron/auto-play", "schedule": "* * * * *" },
+    { "path": "/api/cron/tournament-loop", "schedule": "* * * * *" }
   ]
 }
