@@ -2,6 +2,7 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import AppHeader from './components/AppHeader'
+import BackgroundTournamentRunner from './components/BackgroundTournamentRunner'
 
 export const metadata: Metadata = {
   title: 'Boardroom — Daily Checkers Cash Tournaments',
@@ -43,6 +44,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="antialiased bg-black">
         <AppHeader />
+        <BackgroundTournamentRunner />
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
