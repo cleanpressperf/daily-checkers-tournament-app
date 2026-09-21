@@ -12,13 +12,14 @@ const definitions = [
 ]
 
 export async function GET() {
-  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) return NextResponse.json({ error: 'Supabase service role environment is not configured' }, { status: 500 })
+  const url = 'https://dgjgukagbpojidvuwwqz.supabase.co'
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!key) return NextResponse.json({ error: 'Supabase key environment is not configured' }, { status: 500 })
   const db = createClient(url, key, { auth: { persistSession: false } })
   const today = new Date().toISOString().slice(0, 10)
   const { data: existing, error } = await db.from('tournaments').select('*').in('status', ['open', 'upcoming', 'registering']).order('entry_coins')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  console.log('[v0] fill-brackets tournaments count:', existing?.length ?? 0)
   let tournaments = existing ?? []
   if (!tournaments.length) {
     const { data, error: insertError } = await db.from('tournaments').insert(definitions.map((t) => ({ ...t, max_players: 32, status: 'open', date: today, starts_at: new Date().toISOString() }))).select('*')
