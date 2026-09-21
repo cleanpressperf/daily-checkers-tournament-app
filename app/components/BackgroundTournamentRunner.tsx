@@ -9,7 +9,7 @@ export default function BackgroundTournamentRunner() {
       void fetch('/api/cron/auto-play', { cache: 'no-store' }).catch(() => undefined)
     }
     run()
-    const timer = window.setInterval(run, 30000)
+    const timer = window.setInterval(run, 15000)
     return () => window.clearInterval(timer)
   }, [])
   return null
