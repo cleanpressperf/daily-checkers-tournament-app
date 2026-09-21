@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { BOT_NAMES_96 } from '@/lib/bots/names'
+import { BOT_NAMES_96, shuffledBots } from '@/lib/bots/names'
+
+console.log(`[v0] Found ${BOT_NAMES_96.length} names in lib/bots/names.ts: ${BOT_NAMES_96.slice(0, 5).join(', ')}`)
 import { initialBoard } from '@/lib/draughts'
 
 export const dynamic = 'force-dynamic'
@@ -14,7 +16,7 @@ export async function GET() {
     const tournament = tournaments![tournamentIndex]
     const { data: entries } = await db.from('tournament_entries').select('id,user_id,is_bot,bot_name').eq('tournament_id', tournament.id).order('id')
     const current = entries ?? []
-    const availableNames = BOT_NAMES_96.slice(tournamentIndex * 32, tournamentIndex * 32 + 32)
+    const availableNames = shuffledBots(32)
     const missing = Math.max(0, (tournament.max_players ?? 32) - current.length)
     let added = [] as any[]
     if (missing) {
