@@ -1,11 +1,13 @@
-import { kv } from "@vercel/kv";
-export const dynamic = 'force-dynamic';
-export async function GET(){
-  const state = await kv.get("checkers_tournament_v2");
-  return Response.json(state || null);
+import { NextResponse } from 'next/server'
+import { kv } from '@vercel/kv'
+
+export async function GET() {
+  const data = await kv.get('tournament_v2')
+  return NextResponse.json(data || {})
 }
-export async function POST(req:Request){
-  const body = await req.json();
-  await kv.set("checkers_tournament_v2", body);
-  return Response.json({ok:true});
+
+export async function POST(req: Request) {
+  const data = await req.json()
+  await kv.set('tournament_v2', data)
+  return NextResponse.json({ ok: true })
 }
