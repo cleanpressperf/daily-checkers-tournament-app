@@ -14,33 +14,54 @@ function findCaps(board:Piece[][],r:number,c:number,piece:Piece,vis:Set<string>)
   else{for(let d of DIRS){let rr=r+d.r,cc=c+d.c;while(inside(rr,cc)&&board[rr][cc]===0){rr+=d.r;cc+=d.c;}if(!inside(rr,cc))continue;if(!isOpp(piece,board[rr][cc]))continue;const key=`${rr},${cc}`;if(vis.has(key))continue;let lr=rr+d.r,lc=cc+d.c;while(inside(lr,lc)&&board[lr][lc]===0){const nb=clone(board);nb[rr][cc]=0;nb[r][c]=0;nb[lr][lc]=piece;const nV=new Set(vis);nV.add(key);const fur=findCaps(nb,lr,lc,piece,nV);if(fur.length){fur.forEach((f:any)=>res.push({path:[{r,c},{r:lr,c:lc},...f.path.slice(1)],caps:[{r:rr,c:cc},...f.caps],finalBoard:f.finalBoard}));}else{res.push({path:[{r,c},{r:lr,c:lc}],caps:[{r:rr,c:cc}],finalBoard:nb});}lr+=d.r;lc+=d.c;}}}
   return res;
 }
-function getMoves(board:Piece[][],turn:1|2){let allCaps:any[]=[];for(let r=0;r<10;r++)for(let c=0;c<10;c++){const p=board[r][c];if(!p)continue;if((turn===1)!==(p===1||p===11))continue;const caps=findCaps(board,r,c,p,new Set());caps.forEach(x=>allCaps.push({...x}));}if(allCaps.length){const max=Math.max(...allCaps.map((x:any)=>x.caps.length));return{caps:allCaps.filter((x:any)=>x.caps.length===max),moves:[]};}const moves:any[]=[];for(let r=0;r<10;r++)for(let c=0;c<10;c++){const p=board[r][c];if(!p)continue;if((turn===1)!==(p===1||p===11))continue;const isKing=p===11||p===22;if(!isKing){const dirs=p===1?[{r:1,c:-1},{r:1,c:1}]:[{r:-1,c:-1},{r:-1,c:1}];dirs.forEach(d=>{const nr=r+d.r,nc=c+d.c;if(inside(nr,nc)&&board[nr][nc]===0){const nb=clone(board);nb[r][c]=0;nb[nr][nc]=p;if(nr===9&&p===1)nb[nr][nc]=11;if(nr===0&&p===2)nb[nr][nc]=22;moves.push({board:nb});}});}else{DIRS.forEach(d=>{let nr=r+d.r,nc=c+d.c;while(inside(nr,nc)&&board[nr][nc]===0){const nb=clone(board);nb[r][c]=0;nb[nr][nc]=p;moves.push({board:nb});nr+=d.r;nc+=d.c;}});}}return{caps:[],moves};}
+function getMoves(board:Piece[][],turn:1|2){
+  let allCaps:any[]=[]; for(let r=0;r<10;r++)for(let c=0;c<10;c++){const p=board[r][c]; if(!p)continue; if((turn===1)!==(p===1||p===11))continue; const caps=findCaps(board,r,c,p,new Set()); caps.forEach(x=>allCaps.push({...x}));}
+  if(allCaps.length){const max=Math.max(...allCaps.map((x:any)=>x.caps.length)); return{caps:allCaps.filter((x:any)=>x.caps.length===max),moves:[]}; }
+  const moves:any[]=[]; for(let r=0;r<10;r++)for(let c=0;c<10;c++){const p=board[r][c]; if(!p)continue; if((turn===1)!==(p===1||p===11))continue; const isKing=p===11||p===22; if(!isKing){const dirs=p===1?[{r:1,c:-1},{r:1,c:1}]:[{r:-1,c:-1},{r:-1,c:1}]; dirs.forEach(d=>{const nr=r+d.r,nc=c+d.c; if(inside(nr,nc)&&board[nr][nc]===0){const nb=clone(board); nb[r][c]=0; nb[nr][nc]=p; if(nr===9&&p===1)nb[nr][nc]=11; if(nr===0&&p===2)nb[nr][nc]=22; moves.push({board:nb});}});} else{DIRS.forEach(d=>{let nr=r+d.r,nc=c+d.c; while(inside(nr,nc)&&board[nr][nc]===0){const nb=clone(board); nb[r][c]=0; nb[nr][nc]=p; moves.push({board:nb}); nr+=d.r; nc+=d.c;}});}}
+  return{caps:[],moves};
+}
 function mulberry32(a:number){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}}
 function shuffleFisher(arr:string[], rng:any){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function simulateOne(s:any,RNG:any){
   if(s.finalCelebration) return s;
   if(s.chain){const cur=s.chain;if(!cur||cur.step>=cur.path.length-1){return{...s,board:cur.finalBoard,chain:null,turn:s.turn===1?2:1};}const nb=clone(s.board);const from=cur.path[cur.step];const to=cur.path[cur.step+1];const cap=cur.caps[cur.step];const piece=nb[from.r][from.c];nb[from.r][from.c]=0;if(cap)nb[cap.r][cap.c]=0;nb[to.r][to.c]=piece;if(to.r===9&&piece===1)nb[to.r][to.c]=11;if(to.r===0&&piece===2)nb[to.r][to.c]=22;return{...s,board:nb,chain:{...cur,step:cur.step+1}};}
-  const {caps,moves}=getMoves(s.board,s.turn);let next:any={...s, lastWinner:null, roundJustFinished:false};
+  const {caps,moves}=getMoves(s.board,s.turn);let next:any={...s, lastWinner:null, nextRoundLabel:null, roundJustFinished:false};
   if(caps.length===0&&moves.length===0){
-    const winner=s.turn===1?s.p2:s.p1; next.lastWinner=winner;
+    const winner=s.turn===1?s.p2:s.p1;
+    const loser=s.turn===1?s.p1:s.p2;
+    next.lastWinner=winner; next.lastLoser=loser;
     const newWinners=[...s.roundWinners,winner];
+    // FIXED ANNOUNCEMENT LOGIC
     if(newWinners.length>=s.bracket.length/2){
       if(s.roundIdx===4 && newWinners.length===1){
-        return {...s, bracket:[], p1:winner, p2:"", board:newBoard(), roundIdx:4, matchInRound:0, roundWinners:[winner], lastWinner:winner, finalCelebration:true, finalWinner:winner, finalTime:Date.now()};
+        return {...s, bracket:[], p1:winner, p2:"", board:newBoard(), roundIdx:4, matchInRound:0, roundWinners:[winner], lastWinner:winner, nextRoundLabel:"TOURNAMENT CHAMPION", finalCelebration:true, finalWinner:winner, finalTime:Date.now()};
       }else{
-        next.bracket=[...newWinners]; next.roundIdx=s.roundIdx+1; next.matchInRound=0; next.roundWinners=[]; next.p1=next.bracket[0]; next.p2=next.bracket[1]; next.board=newBoard(); next.turn=1; next.roundJustFinished=true; return next;
+        const proceedingTo = ROUND_NAMES[s.roundIdx+1] || "FINAL";
+        next.bracket=[...newWinners]; next.roundIdx=s.roundIdx+1; next.matchInRound=0; next.roundWinners=[]; next.p1=next.bracket[0]; next.p2=next.bracket[1]; next.board=newBoard(); next.turn=(RNG()>0.5?1:2) as 1|2; next.roundJustFinished=true; next.nextRoundLabel=proceedingTo; return next;
       }
-    }else{ next.matchInRound=s.matchInRound+1; next.roundWinners=newWinners; next.p1=s.bracket[next.matchInRound*2]; next.p2=s.bracket[next.matchInRound*2+1]; next.board=newBoard(); next.turn=1; }
+    }else{
+      const proceedingTo = ROUND_NAMES[s.roundIdx+1] || "FINAL";
+      next.matchInRound=s.matchInRound+1; next.roundWinners=newWinners; next.p1=s.bracket[next.matchInRound*2]; next.p2=s.bracket[next.matchInRound*2+1]; next.board=newBoard(); next.turn=(RNG()>0.5?1:2) as 1|2; next.nextRoundLabel=proceedingTo;
+    }
   }
-  else if(caps.length){const best=caps[Math.floor(RNG()*caps.length)];if(best.path.length>2){const from=best.path[0];const firstTo=best.path[1];const cap=best.caps[0];const nb=clone(s.board);const piece=nb[from.r][from.c];nb[from.r][from.c]=0;nb[cap.r][cap.c]=0;nb[firstTo.r][firstTo.c]=piece;if(firstTo.r===9&&piece===1)nb[firstTo.r][firstTo.c]=11;if(firstTo.r===0&&piece===2)nb[firstTo.r][firstTo.c]=22;next.board=nb;next.chain={path:best.path,caps:best.caps,finalBoard:best.finalBoard,step:1};}else{next.board=best.finalBoard;next.turn=s.turn===1?2:1;}}
-  else{const chosen=moves[Math.floor(RNG()*Math.min(3,moves.length))];if(chosen){next.board=chosen.board;next.turn=s.turn===1?2:1;}}
+  else if(caps.length){
+    // BALANCED: pick random capture fully, not first
+    const best=caps[Math.floor(RNG()*caps.length)];
+    if(best.path.length>2){const from=best.path[0];const firstTo=best.path[1];const cap=best.caps[0];const nb=clone(s.board);const piece=nb[from.r][from.c];nb[from.r][from.c]=0;nb[cap.r][cap.c]=0;nb[firstTo.r][firstTo.c]=piece;if(firstTo.r===9&&piece===1)nb[firstTo.r][firstTo.c]=11;if(firstTo.r===0&&piece===2)nb[firstTo.r][firstTo.c]=22;next.board=nb;next.chain={path:best.path,caps:best.caps,finalBoard:best.finalBoard,step:1};}
+    else{next.board=best.finalBoard;next.turn=s.turn===1?2:1;}
+  }
+  else{
+    // BALANCED FIX: was moves[Math.floor(RNG()*Math.min(3,moves.length))] — now fully random across ALL moves
+    const idx=Math.floor(RNG()*moves.length);
+    const chosen=moves[idx];
+    if(chosen){next.board=chosen.board;next.turn=s.turn===1?2:1;}
+  }
   return next;
 }
 
 export default function Watch(){
   const canvasRef=useRef<HTMLCanvasElement>(null);
   const [info,setInfo]=useState<any>(null);
-  const [soundOn,setSoundOn]=useState(true);
   const stateRef=useRef<any>(null);
   const rngRef=useRef<any>(null);
   const audioRef=useRef<AudioContext|null>(null);
@@ -49,30 +70,24 @@ export default function Watch(){
   useEffect(()=>{
     const RNG=mulberry32(123456); rngRef.current=RNG;
     const sh=shuffleFisher(ALL_96,RNG);
-    let st:any={bracket:sh.slice(0,32),p1:sh[0],p2:sh[1],board:newBoard(),turn:1,roundIdx:0,matchInRound:0,roundWinners:[],chain:null,finalCelebration:false};
+    let st:any={bracket:sh.slice(0,32),p1:sh[0],p2:sh[1],board:newBoard(),turn:RNG()>0.5?1:2,roundIdx:0,matchInRound:0,roundWinners:[],chain:null,finalCelebration:false};
     const globalMove = Math.floor(Date.now()/4000) % 600;
     for(let i=0;i<globalMove;i++) st=simulateOne(st,RNG);
     stateRef.current=st;
 
     const speak=(text:string)=>{
-      try{
-        speechSynthesis.cancel();
-        const u=new SpeechSynthesisUtterance(text);
-        u.volume=1.0; u.rate=0.85; u.pitch=1.1;
-        speechSynthesis.speak(u);
-      }catch{}
+      try{ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); u.volume=1.0; u.rate=0.82; u.pitch=1.15; speechSynthesis.speak(u);}catch{}
     };
     const play=(type:'move'|'capture'|'win')=>{
-      if(!soundOn) return;
       try{
         if(!audioRef.current) audioRef.current=new (window.AudioContext||(window as any).webkitAudioContext)();
-        const ctx=audioRef.current; const o=ctx.createOscillator(); const g=ctx.createGain(); o.connect(g); g.connect(ctx.destination);
-        if(type==='move'){o.frequency.value=650; g.gain.setValueAtTime(0.9,ctx.currentTime); o.start(); o.stop(ctx.currentTime+0.15);}
-        else if(type==='capture'){o.frequency.value=180; g.gain.setValueAtTime(1.0,ctx.currentTime); o.frequency.exponentialRampToValueAtTime(1000,ctx.currentTime+0.3); o.start(); o.stop(ctx.currentTime+0.35);}
-        else if(type==='win'){o.frequency.value=300; g.gain.setValueAtTime(1.0,ctx.currentTime); o.frequency.linearRampToValueAtTime(900,ctx.currentTime+0.6); o.start(); o.stop(ctx.currentTime+0.7);}
+        const ctx=audioRef.current; ctx.resume();
+        const o=ctx.createOscillator(); const g=ctx.createGain(); o.connect(g); g.connect(ctx.destination);
+        if(type==='move'){o.frequency.value=700; g.gain.setValueAtTime(1.0,ctx.currentTime); o.start(); o.stop(ctx.currentTime+0.12);}
+        else if(type==='capture'){o.frequency.value=150; g.gain.setValueAtTime(1.0,ctx.currentTime); o.frequency.exponentialRampToValueAtTime(1200,ctx.currentTime+0.35); o.start(); o.stop(ctx.currentTime+0.4);}
+        else if(type==='win'){o.type='triangle'; o.frequency.value=250; g.gain.setValueAtTime(1.0,ctx.currentTime); o.frequency.linearRampToValueAtTime(900,ctx.currentTime+0.7); o.start(); o.stop(ctx.currentTime+0.8);}
       }catch{}
     };
-
     const draw=(board:Piece[][])=>{
       const c=canvasRef.current; if(!c) return; const ctx=c.getContext("2d"); if(!ctx) return;
       const rect=c.getBoundingClientRect(); const dpr=window.devicePixelRatio||1;
@@ -81,88 +96,59 @@ export default function Watch(){
       for(let r=0;r<10;r++)for(let cc=0;cc<10;cc++){ctx.fillStyle=(r+cc)%2===0?"#f0d9b5":"#b58863";ctx.fillRect(cc*sq,r*sq,sq,sq);}
       for(let r=0;r<10;r++)for(let cc=0;cc<10;cc++){const p=board[r][cc]; if(!p) continue; const x=cc*sq+sq/2,y=r*sq+sq/2; ctx.beginPath(); ctx.arc(x,y,sq*0.38,0,Math.PI*2); ctx.fillStyle=(p===1||p===11)?"#111":"#c1272d"; ctx.fill(); ctx.lineWidth=(p===11||p===22)?3:1; ctx.strokeStyle=(p===11||p===22)?"gold":"#000"; ctx.stroke();}
     };
-
     const tick=()=>{
       draw(stateRef.current.board);
       setInfo({...stateRef.current});
       const s=stateRef.current;
       if(s.lastWinner && s.lastWinner!==lastWinnerRef.current){
         lastWinnerRef.current=s.lastWinner;
-        if(s.finalCelebration){
-          play('win');
-          speak(`Tournament champion! ${s.finalWinner}! Tournament champion ${s.finalWinner}!`);
-        } else {
-          play('win');
-          // FIXED: says NEXT round, not current round
-          const nextRoundName = ROUND_NAMES[s.roundIdx]? ROUND_NAMES[s.roundIdx] : "FINAL";
-          // roundIdx already advanced to next round, so nextRoundName is correct next
-          // If we are in Round of 32 (0) and winner proceeds, roundIdx becomes 1 = Round of 16
-          // For display: if match was Round of 32, announce Round of 16
-          const currentRoundWas = s.roundJustFinished? ROUND_NAMES[s.roundIdx-1] : ROUND_NAMES[s.roundIdx-1] || ROUND_NAMES[0];
-          const announceNext = ROUND_NAMES[s.roundIdx] || "FINAL";
-          if(s.roundIdx===4) speak(`${s.lastWinner} wins! Proceeds to the FINAL!`);
-          else speak(`${s.lastWinner} wins! Proceeds to ${announceNext}`);
-        }
-      } else {
-        if(s.chain) play('capture'); else play('move');
-      }
+        if(s.finalCelebration){ play('win'); speak(`Tournament champion! ${s.finalWinner}! Champion is ${s.finalWinner}!`); }
+        else{ play('win'); const to = s.nextRoundLabel || ROUND_NAMES[s.roundIdx+1] || "FINAL"; speak(`${s.lastWinner} wins! Proceeds to ${to}`); }
+      } else { if(s.chain) play('capture'); else play('move'); }
     };
-
     tick();
     const iv=setInterval(()=>{
       const s=stateRef.current;
       if(s.finalCelebration){
-        const elapsed=Math.floor((Date.now()-s.finalTime)/1000);
-        const remaining=300-elapsed;
-        if(remaining<=0){
-          const sh2=shuffleFisher(ALL_96,rngRef.current);
-          stateRef.current={bracket:sh2.slice(0,32),p1:sh2[0],p2:sh2[1],board:newBoard(),turn:1,roundIdx:0,matchInRound:0,roundWinners:[],chain:null,finalCelebration:false};
-          lastWinnerRef.current=""; speak("New tournament beginning now!");
-        } else {
-          setInfo({...s, countdown:remaining}); draw(s.board); return;
-        }
+        const elapsed=Math.floor((Date.now()-s.finalTime)/1000); const remaining=300-elapsed;
+        if(remaining<=0){ const sh2=shuffleFisher(ALL_96,rngRef.current); stateRef.current={bracket:sh2.slice(0,32),p1:sh2[0],p2:sh2[1],board:newBoard(),turn:rngRef.current()>0.5?1:2,roundIdx:0,matchInRound:0,roundWinners:[],chain:null,finalCelebration:false}; lastWinnerRef.current=""; speak("New tournament beginning now!"); }
+        else { setInfo({...s, countdown:remaining}); draw(s.board); return; }
       }
       stateRef.current=simulateOne(stateRef.current,rngRef.current);
       tick();
     },4000);
-
     const enableAudio=()=>{ try{ if(!audioRef.current) audioRef.current=new (window.AudioContext||(window as any).webkitAudioContext)(); audioRef.current.resume(); }catch{} };
     document.addEventListener('click',enableAudio); document.addEventListener('touchstart',enableAudio);
     return()=>{clearInterval(iv); document.removeEventListener('click',enableAudio); document.removeEventListener('touchstart',enableAudio);};
-  },[soundOn]);
+  },[]);
 
-  if(!info) return <div style={{background:"#000",color:"#fff",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>Loading...</div>;
-
+  if(!info) return <div style={{background:"#000",color:"#fff",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>Loading balanced tournament...</div>;
   if(info.finalCelebration){
     const m=Math.floor((info.countdown||300)/60); const s=(info.countdown||300)%60;
     return <div style={{background:"#000",color:"#fff",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20,textAlign:"center"}}>
-      <div style={{fontSize:14,color:"#ff3b3b"}}>◎ TOURNAMENT FINISHED</div>
+      <div style={{color:"#ff3b3b"}}>◎ TOURNAMENT FINISHED</div>
       <h1 style={{fontSize:42,margin:"20px 0"}}>🏆 {info.finalWinner} 🏆</h1>
-      <div style={{fontSize:20}}>TOURNAMENT CHAMPION</div>
-      <div style={{fontSize:18,marginTop:12,opacity:0.8}}>New tournament in {m}:{s.toString().padStart(2,'0')}</div>
+      <div style={{fontSize:18}}>New tournament in {m}:{s.toString().padStart(2,'0')}</div>
       <canvas ref={canvasRef} style={{width:300,height:300,borderRadius:16,opacity:0.2,marginTop:20}} />
     </div>;
   }
-
-  const nextRoundLabel = ROUND_NAMES[info.roundIdx] || "FINAL";
-  const prevRoundLabel = info.roundIdx>0? ROUND_NAMES[info.roundIdx-1] : ROUND_NAMES[0];
-
+  const currentRound = ROUND_NAMES[info.roundIdx] || "FINAL";
+  const nextRound = info.nextRoundLabel || ROUND_NAMES[info.roundIdx+1] || "FINAL";
   return <div style={{background:"#000",color:"#fff",minHeight:"100vh",padding:10,display:"flex",flexDirection:"column",alignItems:"center"}}>
     <div style={{width:"100%",maxWidth:560}}>
-      <div style={{display:"flex",justifyContent:"space-between"}}>
-        <div style={{color:"#ff3b3b",fontSize:12,fontWeight:700}}>◎ LIVE · {prevRoundLabel} · Game {info.matchInRound+1}</div>
-        <button onClick={()=>setSoundOn(!soundOn)} style={{background:soundOn?"#22c55e":"#333",color:"#fff",border:"none",borderRadius:6,padding:"4px 8px",fontSize:11}}>{soundOn?"🔊 LOUD ON - Tap screen":"🔇 OFF"}</button>
-      </div>
+      <div style={{color:"#ff3b3b",fontSize:12,fontWeight:700}}>◎ LIVE GLOBAL · {currentRound} · Game {info.matchInRound+1}</div>
       <h2 style={{margin:"8px 0 4px",fontSize:18}}>{info.p1} <span style={{color:"#666"}}>vs</span> {info.p2}</h2>
-      <canvas ref={canvasRef} style={{width:"100%",aspectRatio:"1/1",background:"#3d2814",borderRadius:16,border:"4px solid #5a3e2b",display:"block"}} />
+      <div style={{fontSize:10,opacity:0.5}}>Black vs Red · 50/50 balanced AI · Turn: {info.turn===1?'Black':'Red'}</div>
+      <canvas ref={canvasRef} style={{width:"100%",aspectRatio:"1/1",background:"#3d2814",borderRadius:16,border:"4px solid #5a3e2b",display:"block",marginTop:8}} />
       <div style={{marginTop:12,background:"#111",border:"1px solid #222",borderRadius:10,padding:10}}>
-        <div style={{fontSize:12,fontWeight:700,color:"#ffcc00"}}>➤ Winners to {nextRoundLabel} — {prevRoundLabel} just ended = wipe and start new list</div>
+        <div style={{fontSize:12,fontWeight:700,color:"#ffcc00"}}>➤ Winners proceeding to {nextRound} (playing {currentRound})</div>
         <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:6}}>
-          {info.roundWinners.length===0? <span style={{fontSize:11,opacity:0.5}}>Waiting first winner...</span> :
+          {info.roundWinners.length===0? <span style={{fontSize:11,opacity:0.5}}>No winners yet...</span> :
             info.roundWinners.map((n:string,i:number)=><span key={i} style={{background:"#1f1f1f",border:"1px solid #333",borderRadius:12,padding:"4px 8px",fontSize:11}}>{i+1}. {n}</span>)}
         </div>
+        <div style={{fontSize:10,opacity:0.4,marginTop:6}}>List wipes after {currentRound} finishes</div>
       </div>
-      {info.lastWinner && <div style={{marginTop:10,background:"#0f2a0f",border:"1px solid #22c55e",borderRadius:8,padding:8,fontSize:13,color:"#22c55e"}}>🔊 {info.lastWinner} wins → Proceeds to {nextRoundLabel}</div>}
+      {info.lastWinner && <div style={{marginTop:10,background:"#0f2a0f",border:"1px solid #22c55e",borderRadius:8,padding:8,fontSize:13,color:"#22c55e"}}>🔊 {info.lastWinner} wins → Proceeds to {nextRound} (NOT {currentRound}) — BALANCED</div>}
     </div>
   </div>;
 }
