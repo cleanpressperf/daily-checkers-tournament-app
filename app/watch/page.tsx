@@ -4,6 +4,7 @@ const ROUND_NAMES=["Round of 32","Round of 16","Quarterfinal","Semifinal","FINAL
 const ALL_96=["Marlo Stanfield","Thomas Shelby","Arthur Shelby","John Shelby","Finn Shelby","Michael Gray","Polly Gray","Ada Shelby","Isaiah Jesus","Jeremiah Jesus","Jimmy McCavern","Aberama Gold","Alfie Solomons","Luca Changretta","Michael Corleone","Vito Corleone","Sonny Corleone","Tom Hagen","Omar Little","Stringer Bell","Avon Barksdale","Jimmy McNulty","Lester Freamon","Franklin Saint","Leon Simmons","Jerome Saint","Teddy McDonald","Manboy","Gustavo Fring","Esme Shelby","Lizzie Stark","Freddie Thorne","Grace Burgess","May Carleton","Billy Kimber","Darby Sabini","Oswald Mosley","Winston Churchill","Johnny Dogs","Curly","Jack Nelson","Bodie Broadus","Slim Charles","Snoop Pearson","Bunk Moreland","Kima Greggs","Connie Corleone","Kay Adams","Apollonia Vitelli","Moe Greene","Hyman Roth","Cissy Saint","Kane Hamilton","Rob Volpe","Andre Wright","Walter White","Jesse Pinkman","Saul Goodman","Hank Schrader","Mike Ehrmantraut","Pablo Escobar","Javier Pena","Steve Murphy","Tommy Shelby Jr","John Watson","Sherlock Holmes","James Moriarty","Tony Soprano","Paulie Gualtieri","Silvio Dante","Christopher Moltisanti","Tony Montana","Manny Ribera","Nucky Thompson","Al Capone","Lucky Luciano","Bugsy Siegel","Meyer Lansky","Dutch Schultz","Arnold Rothstein","Frank Costello","Vito Genovese","Carlo Gambino","John Gotti","Sammy Gravano","Whitey Bulger","Ray Donovan","Mickey Donovan","Terry Donovan","Daryl Donovan","Bunchy Donovan","Sully Sullivan","James Donovan","Fitzgerald","Devereaux","Cousin Mickey","Zion"];
 type Piece=0|1|2|11|22;
 const DIRS=[{r:-1,c:-1},{r:-1,c:1},{r:1,c:-1},{r:1,c:1}];
+const GLOBAL_START = 1758568800000; // Mon Sep 22 2026 14:00:00 GMT - FIXED WORLDWIDE
 function newBoard():Piece[][]{const b:Piece[][]=Array(10).fill(0).map(()=>Array(10).fill(0) as Piece[]);for(let r=0;r<4;r++)for(let c=0;c<10;c++)if((r+c)%2===1)b[r][c]=1;for(let r=6;r<10;r++)for(let c=0;c<10;c++)if((r+c)%2===1)b[r][c]=2;return b;}
 function inside(r:number,c:number){return r>=0&&r<10&&c>=0&&c<10;}
 function isOpponent(p:Piece,t:Piece){if(t===0)return false;const isP1=p===1||p===11;const isT1=t===1||t===11;return isP1!==isT1;}
@@ -25,74 +26,38 @@ function simulateOne(s:any,RNG:any){
   else{const chosen=moves[Math.floor(RNG()*Math.min(3,moves.length))];next.board=chosen.board;next.turn=s.turn===1?2:1;}
   return next;
 }
-function playSound(t:'move'|'capture'){try{const c=new(window.AudioContext||(window as any).webkitAudioContext)();const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);if(t==='move'){o.frequency.value=500;g.gain.value=0.2;o.start();o.stop(c.currentTime+0.12);}else{o.frequency.value=200;g.gain.value=0.3;o.start();o.frequency.exponentialRampToValueAtTime(900,c.currentTime+0.25);o.stop(c.currentTime+0.3);}}catch{}}
+function computeStateAt(targetMove:number){
+  const RNG=mulberry32(123456);
+  const shuffled=shuffleFisher(ALL_96,RNG);
+  let state:any={bracket:shuffled.slice(0,32),p1:shuffled[0],p2:shuffled[1],board:newBoard(),turn:1,roundIdx:0,matchInRound:0,roundWinners:[],chain:null};
+  for(let i=0;i<targetMove;i++){ state=simulateOne(state,RNG); }
+  return state;
+}
 
 export default function Watch(){
   const [s,setS]=useState<any>(null);
-  const stateRef=useRef<any>(null);
-  const rngRef=useRef<any>(null);
-  const moveRef=useRef(0);
-  const timeRef=useRef(Date.now());
   useEffect(()=>{
-    const STORAGE_KEY="checkers_live_state_v2";
-    let iv:any;
-    const saveToStorage=(state:any, move:number, rngSeed:number, rngCalls:number)=>{
-      try{localStorage.setItem(STORAGE_KEY, JSON.stringify({state, move, rngSeed, rngCalls, savedAt:Date.now()}));}catch{}
+    // CLEAR old saved game that caused different games per device
+    localStorage.removeItem("checkers_live_state_v2");
+    localStorage.removeItem("checkers_live_state");
+    const build=()=>{
+      const target=Math.max(0, Math.floor((Date.now()-GLOBAL_START)/4000));
+      const st=computeStateAt(target);
+      setS({...st, move:target});
     };
-    const loadFromStorage=()=>{
-      try{const raw=localStorage.getItem(STORAGE_KEY); if(!raw) return null; const parsed=JSON.parse(raw); if(Date.now()-parsed.savedAt>24*60*60*1000) return null; return parsed;}catch{return null;}
-    };
-    const init=()=>{
-      rngRef.current=mulberry32(123456);
-      const saved=loadFromStorage();
-      let state:any;
-      let startMove=0;
-      if(saved){
-        state=saved.state;
-        startMove=saved.move;
-        // fast-forward elapsed time
-        const elapsed=Math.floor((Date.now()-saved.savedAt)/4000);
-        // restore rng calls
-        for(let i=0;i<saved.rngCalls;i++) rngRef.current();
-        for(let i=0;i<elapsed;i++){ state=simulateOne(state, rngRef.current); startMove++; }
-      } else {
-        const shuffled=shuffleFisher(ALL_96, rngRef.current);
-        const first32=shuffled.slice(0,32);
-        state={bracket:first32,p1:first32[0],p2:first32[1],board:newBoard(),turn:1,roundIdx:0,matchInRound:0,roundWinners:[],chain:null};
-        // rngCalls = 31 swaps ~ but we count
-      }
-      stateRef.current=state;
-      moveRef.current=startMove;
-      timeRef.current=Date.now();
-      setS({...state,move:startMove});
-      saveToStorage(state, startMove, 123456, 0);
-
-      iv=setInterval(()=>{
-        const before=JSON.stringify(stateRef.current.board);
-        stateRef.current=simulateOne(stateRef.current, rngRef.current);
-        moveRef.current++;
-        const after=JSON.stringify(stateRef.current.board);
-        if(before!==after) playSound(before.length!==after.length?'capture':'move');
-        setS({...stateRef.current,move:moveRef.current});
-        if(moveRef.current%5===0) saveToStorage(stateRef.current, moveRef.current, 123456, moveRef.current*2);
-      },4000);
-    };
-    init();
-    const onVis=()=>{ if(document.visibilityState==='visible'){ const saved=loadFromStorage(); if(saved){ const elapsed=Math.floor((Date.now()-saved.savedAt)/4000); if(elapsed>0){ for(let i=0;i<elapsed;i++){ stateRef.current=simulateOne(stateRef.current, rngRef.current); moveRef.current++; } setS({...stateRef.current,move:moveRef.current}); } } } };
-    document.addEventListener('visibilitychange', onVis);
-    const en=()=>{try{new(window.AudioContext||(window as any).webkitAudioContext)().resume();}catch{} document.removeEventListener('click',en);};
-    document.addEventListener('click',en);
-    return()=>{clearInterval(iv);document.removeEventListener('visibilitychange',onVis);document.removeEventListener('click',en);};
+    build();
+    const iv=setInterval(build,4000);
+    return()=>clearInterval(iv);
   },[]);
-  if(!s) return <div style={{background:"#000",color:"#fff",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>Loading...</div>;
+  if(!s) return <div style={{background:"#000",color:"#fff",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>Syncing global game...</div>;
   return <div style={{background:"#000",color:"#fff",minHeight:"100vh",padding:10,display:"flex",flexDirection:"column",alignItems:"center"}}>
     <div style={{width:"100%",maxWidth:560}}>
-      <div style={{color:"#ff3b3b",fontSize:12,fontWeight:700}}>◎ 24/7 LIVE · {ROUND_NAMES[s.roundIdx]} · Game {s.matchInRound+1} · Move {s.move} · saved</div>
-      <h2 style={{margin:"10px 0 12px",fontSize:20}}>{s.p1} <span style={{color:"#777"}}>vs</span> {s.p2}<br/><span style={{fontSize:12,color:s.turn===1?"#fff":"#ff5555"}}>{s.turn===1?s.p1:s.p2} to move • tap 🔊</span></h2>
+      <div style={{color:"#ff3b3b",fontSize:12,fontWeight:700}}>◎ 24/7 LIVE GLOBAL · {ROUND_NAMES[s.roundIdx]} · Game {s.matchInRound+1} · Move {s.move}</div>
+      <h2 style={{margin:"10px 0 12px",fontSize:20}}>{s.p1} <span style={{color:"#777"}}>vs</span> {s.p2}<br/><span style={{fontSize:12,color:s.turn===1?"#fff":"#ff5555"}}>{s.turn===1?s.p1:s.p2} to move</span></h2>
       <div style={{width:"100%",aspectRatio:"1/1",background:"#3d2814",border:"4px solid #5a3e2b",borderRadius:16,overflow:"hidden",display:"grid",gridTemplateColumns:"repeat(10,1fr)",gridTemplateRows:"repeat(10,1fr)"}}>
         {s.board.map((row:any,r:number)=>row.map((cell:any,c:number)=>{const isLight=(r+c)%2===0;return <div key={r+"-"+c} style={{background:isLight?"#f0d9b5":"#b58863",display:"flex",alignItems:"center",justifyContent:"center"}}>{cell!==0&&<div style={{width:"82%",height:"82%",borderRadius:"50%",background:cell===1||cell===11?"#111":"#cc2222",border:cell===11||cell===22?"3px solid gold":"1px solid #000",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:12,color:"gold"}}>{cell===11||cell===22?"♔":""}</span></div>}</div>; }))}
       </div>
-      <div style={{marginTop:10,background:"#111",border:"1px solid #222",borderRadius:10,padding:8,fontSize:11,opacity:0.6}}>Refresh or new tab = continues same match. Saved locally so never restarts.</div>
+      <div style={{marginTop:10,background:"#111",border:"1px solid #222",borderRadius:10,padding:8,fontSize:11,opacity:0.6}}>Same game on all devices · Auto-sync every 4s · Fixed global start</div>
     </div>
   </div>;
 }
