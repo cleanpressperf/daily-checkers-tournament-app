@@ -18,62 +18,149 @@ function getMoves(board:Piece[][],turn:1|2){let allCaps:any[]=[];for(let r=0;r<1
 function mulberry32(a:number){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}}
 function shuffleFisher(arr:string[], rng:any){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function simulateOne(s:any,RNG:any){
+  if(s.finalCelebration) return s;
   if(s.chain){const cur=s.chain;if(!cur||cur.step>=cur.path.length-1){return{...s,board:cur.finalBoard,chain:null,turn:s.turn===1?2:1};}const nb=clone(s.board);const from=cur.path[cur.step];const to=cur.path[cur.step+1];const cap=cur.caps[cur.step];const piece=nb[from.r][from.c];nb[from.r][from.c]=0;if(cap)nb[cap.r][cap.c]=0;nb[to.r][to.c]=piece;if(to.r===9&&piece===1)nb[to.r][to.c]=11;if(to.r===0&&piece===2)nb[to.r][to.c]=22;return{...s,board:nb,chain:{...cur,step:cur.step+1}};}
-  const {caps,moves}=getMoves(s.board,s.turn);let next:any={...s};
-  if(caps.length===0&&moves.length===0){const winner=s.turn===1?s.p2:s.p1;const newWinners=[...s.roundWinners,winner];if(newWinners.length>=s.bracket.length/2){if(s.roundIdx===4&&newWinners.length===1){const sh=shuffleFisher(ALL_96,RNG);return{bracket:sh.slice(0,32),p1:sh[0],p2:sh[1],board:newBoard(),turn:1,roundIdx:0,matchInRound:0,roundWinners:[],chain:null};}else{next.bracket=[...newWinners];next.roundIdx=s.roundIdx+1;next.matchInRound=0;next.roundWinners=[];next.p1=next.bracket[0];next.p2=next.bracket[1];next.board=newBoard();next.turn=1;return next;}}else{next.matchInRound=s.matchInRound+1;next.roundWinners=newWinners;next.p1=s.bracket[next.matchInRound*2];next.p2=s.bracket[next.matchInRound*2+1];next.board=newBoard();next.turn=1;}}
+  const {caps,moves}=getMoves(s.board,s.turn);let next:any={...s, lastWinner:null};
+  if(caps.length===0&&moves.length===0){
+    const winner=s.turn===1?s.p2:s.p1; next.lastWinner=winner;
+    const newWinners=[...s.roundWinners,winner];
+    if(newWinners.length>=s.bracket.length/2){
+      if(s.roundIdx===4 && newWinners.length===1){
+        // TOURNAMENT FINAL WINNER
+        return {...s, bracket:[], p1:winner, p2:"", board:newBoard(), roundIdx:4, matchInRound:0, roundWinners:[winner], lastWinner:winner, finalCelebration:true, finalWinner:winner, finalTime:Date.now()};
+      }else{
+        next.bracket=[...newWinners]; next.roundIdx=s.roundIdx+1; next.matchInRound=0; next.roundWinners=[]; next.p1=next.bracket[0]; next.p2=next.bracket[1]; next.board=newBoard(); next.turn=1; next.roundJustFinished=true; return next;
+      }
+    }else{ next.matchInRound=s.matchInRound+1; next.roundWinners=newWinners; next.p1=s.bracket[next.matchInRound*2]; next.p2=s.bracket[next.matchInRound*2+1]; next.board=newBoard(); next.turn=1; }
+  }
   else if(caps.length){const best=caps[Math.floor(RNG()*caps.length)];if(best.path.length>2){const from=best.path[0];const firstTo=best.path[1];const cap=best.caps[0];const nb=clone(s.board);const piece=nb[from.r][from.c];nb[from.r][from.c]=0;nb[cap.r][cap.c]=0;nb[firstTo.r][firstTo.c]=piece;if(firstTo.r===9&&piece===1)nb[firstTo.r][firstTo.c]=11;if(firstTo.r===0&&piece===2)nb[firstTo.r][firstTo.c]=22;next.board=nb;next.chain={path:best.path,caps:best.caps,finalBoard:best.finalBoard,step:1};}else{next.board=best.finalBoard;next.turn=s.turn===1?2:1;}}
-  else{const chosen=moves[Math.floor(RNG()*Math.min(3,moves.length))];if(chosen) {next.board=chosen.board;next.turn=s.turn===1?2:1;}}
+  else{const chosen=moves[Math.floor(RNG()*Math.min(3,moves.length))];if(chosen){next.board=chosen.board;next.turn=s.turn===1?2:1;}}
   return next;
 }
 
 export default function Watch(){
   const canvasRef=useRef<HTMLCanvasElement>(null);
   const [info,setInfo]=useState<any>(null);
+  const [soundOn,setSoundOn]=useState(true);
   const stateRef=useRef<any>(null);
   const rngRef=useRef<any>(null);
+  const audioRef=useRef<AudioContext|null>(null);
+  const lastWinnerRef=useRef<string>("");
 
   useEffect(()=>{
-    const RNG=mulberry32(123456);
-    rngRef.current=RNG;
+    const RNG=mulberry32(123456); rngRef.current=RNG;
     const sh=shuffleFisher(ALL_96,RNG);
-    let st:any={bracket:sh.slice(0,32),p1:sh[0],p2:sh[1],board:newBoard(),turn:1,roundIdx:0,matchInRound:0,roundWinners:[],chain:null};
-    // GLOBAL SYNC: same move on all devices, max 400 moves, instant
-    const globalMove = Math.floor(Date.now()/4000) % 400;
-
+    let st:any={bracket:sh.slice(0,32),p1:sh[0],p2:sh[1],board:newBoard(),turn:1,roundIdx:0,matchInRound:0,roundWinners:[],chain:null,finalCelebration:false};
+    const globalMove = Math.floor(Date.now()/4000) % 600;
     for(let i=0;i<globalMove;i++) st=simulateOne(st,RNG);
     stateRef.current=st;
+
+    const speak=(text:string)=>{
+      try{ const u=new SpeechSynthesisUtterance(text); u.rate=0.9; u.pitch=1; speechSynthesis.speak(u);}catch{}
+    };
+    const play=(type:'move'|'capture'|'win')=>{
+      if(!soundOn) return;
+      try{
+        if(!audioRef.current) audioRef.current=new (window.AudioContext||(window as any).webkitAudioContext)();
+        const ctx=audioRef.current; const o=ctx.createOscillator(); const g=ctx.createGain(); o.connect(g); g.connect(ctx.destination);
+        if(type==='move'){o.frequency.value=600; g.gain.setValueAtTime(0.2,ctx.currentTime); o.start(); o.stop(ctx.currentTime+0.12);}
+        else if(type==='capture'){o.frequency.value=200; g.gain.setValueAtTime(0.3,ctx.currentTime); o.frequency.exponentialRampToValueAtTime(900,ctx.currentTime+0.25); o.start(); o.stop(ctx.currentTime+0.3);}
+        else if(type==='win'){o.frequency.value=400; g.gain.setValueAtTime(0.4,ctx.currentTime); o.frequency.linearRampToValueAtTime(800,ctx.currentTime+0.5); o.start(); o.stop(ctx.currentTime+0.6);}
+      }catch{}
+    };
 
     const draw=(board:Piece[][])=>{
       const c=canvasRef.current; if(!c) return; const ctx=c.getContext("2d"); if(!ctx) return;
       const rect=c.getBoundingClientRect(); const dpr=window.devicePixelRatio||1;
       c.width=rect.width*dpr; c.height=rect.width*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
-      const size=rect.width; const sq=size/10;
-      ctx.clearRect(0,0,size,size);
+      const size=rect.width; const sq=size/10; ctx.clearRect(0,0,size,size);
       for(let r=0;r<10;r++)for(let cc=0;cc<10;cc++){ctx.fillStyle=(r+cc)%2===0?"#f0d9b5":"#b58863";ctx.fillRect(cc*sq,r*sq,sq,sq);}
       for(let r=0;r<10;r++)for(let cc=0;cc<10;cc++){const p=board[r][cc]; if(!p) continue; const x=cc*sq+sq/2,y=r*sq+sq/2; ctx.beginPath(); ctx.arc(x,y,sq*0.38,0,Math.PI*2); ctx.fillStyle=(p===1||p===11)?"#111":"#c1272d"; ctx.fill(); ctx.lineWidth=(p===11||p===22)?3:1; ctx.strokeStyle=(p===11||p===22)?"gold":"#000"; ctx.stroke();}
     };
 
     const tick=()=>{
       draw(stateRef.current.board);
-      setInfo({...stateRef.current,move:globalMove + Math.floor((Date.now()/1000)%4000)});
+      setInfo({...stateRef.current});
+      // handle winner announcements
+      const s=stateRef.current;
+      if(s.lastWinner && s.lastWinner!==lastWinnerRef.current){
+        lastWinnerRef.current=s.lastWinner;
+        if(s.finalCelebration){
+          play('win');
+          speak(`Tournament champion! ${s.finalWinner}! Tournament champion ${s.finalWinner}!`);
+        } else {
+          play('win');
+          speak(`${s.lastWinner} wins! Proceeds to ${ROUND_NAMES[s.roundIdx] || 'next round'}`);
+        }
+      } else {
+        // move sounds
+        if(s.chain) play('capture'); else play('move');
+      }
     };
+
     tick();
+    let countdownIv:any;
     const iv=setInterval(()=>{
+      const s=stateRef.current;
+      if(s.finalCelebration){
+        const elapsed=Math.floor((Date.now()-s.finalTime)/1000);
+        const remaining=300-elapsed; // 5 min = 300s
+        if(remaining<=0){
+          // restart tournament 24/7
+          const sh2=shuffleFisher(ALL_96,rngRef.current);
+          stateRef.current={bracket:sh2.slice(0,32),p1:sh2[0],p2:sh2[1],board:newBoard(),turn:1,roundIdx:0,matchInRound:0,roundWinners:[],chain:null,finalCelebration:false};
+          lastWinnerRef.current="";
+          speak("New tournament beginning now!");
+        } else {
+          setInfo({...s, countdown:remaining});
+          draw(s.board);
+          return;
+        }
+      }
       stateRef.current=simulateOne(stateRef.current,rngRef.current);
       tick();
     },4000);
-    const onResize=()=>draw(stateRef.current.board);
-    window.addEventListener("resize",onResize);
-    return()=>{clearInterval(iv);window.removeEventListener("resize",onResize);};
-  },[]);
 
-  if(!info) return <div style={{background:"#000",color:"#fff",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>Loading global...</div>;
-  return <div style={{background:"#000",color:"#fff",minHeight:"100vh",padding:12,display:"flex",flexDirection:"column",alignItems:"center"}}>
-    <div style={{width:"100%",maxWidth:520}}>
-      <div style={{color:"#ff3b3b",fontSize:12,fontWeight:700}}>◎ 24/7 LIVE GLOBAL · {ROUND_NAMES[info.roundIdx]} · G{info.matchInRound+1} · M{info.move%400}</div>
-      <h2 style={{margin:"8px 0",fontSize:18}}>{info.p1} <span style={{color:"#666"}}>vs</span> {info.p2}</h2>
+    const enableAudio=()=>{ try{ if(!audioRef.current) audioRef.current=new (window.AudioContext||(window as any).webkitAudioContext)(); audioRef.current.resume(); }catch{} document.removeEventListener('click',enableAudio); };
+    document.addEventListener('click',enableAudio);
+    return()=>{clearInterval(iv); clearInterval(countdownIv); document.removeEventListener('click',enableAudio);};
+  },[soundOn]);
+
+  if(!info) return <div style={{background:"#000",color:"#fff",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>Loading global tournament...</div>;
+
+  if(info.finalCelebration){
+    const m=Math.floor((info.countdown||300)/60); const s=(info.countdown||300)%60;
+    return <div style={{background:"#000",color:"#fff",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20,textAlign:"center"}}>
+      <div style={{fontSize:14,color:"#ff3b3b"}}>◎ TOURNAMENT FINISHED</div>
+      <h1 style={{fontSize:38,margin:"20px 0"}}>🏆 {info.finalWinner} 🏆</h1>
+      <div style={{fontSize:20,marginBottom:10}}>TOURNAMENT CHAMPION</div>
+      <div style={{fontSize:16,opacity:0.7,marginBottom:20}}>New tournament in {m}:{s.toString().padStart(2,'0')}</div>
+      <canvas ref={canvasRef} style={{width:320,height:320,borderRadius:16,opacity:0.3}} />
+      <div style={{marginTop:20,fontSize:12,opacity:0.5}}>Announced vocally · 24/7 non-stop</div>
+    </div>;
+  }
+
+  return <div style={{background:"#000",color:"#fff",minHeight:"100vh",padding:10,display:"flex",flexDirection:"column",alignItems:"center"}}>
+    <div style={{width:"100%",maxWidth:560}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{color:"#ff3b3b",fontSize:12,fontWeight:700}}>◎ LIVE GLOBAL · {ROUND_NAMES[info.roundIdx]} · Game {info.matchInRound+1}/ {info.bracket.length/2}</div>
+        <button onClick={()=>setSoundOn(!soundOn)} style={{background:soundOn?"#22c55e":"#333",color:"#fff",border:"none",borderRadius:6,padding:"4px 8px",fontSize:11}}>{soundOn?"🔊 Sound ON":"🔇 Sound OFF"} (tap screen to enable)</button>
+      </div>
+      <h2 style={{margin:"10px 0 4px",fontSize:18}}>{info.p1} <span style={{color:"#666"}}>vs</span> {info.p2}</h2>
+      <div style={{color:"#aaa",fontSize:11,marginBottom:8}}>{info.turn===1?info.p1:info.p2} to move · Same on 1M phones</div>
+
       <canvas ref={canvasRef} style={{width:"100%",aspectRatio:"1/1",background:"#3d2814",borderRadius:16,border:"4px solid #5a3e2b",display:"block"}} />
-      <div style={{marginTop:8,fontSize:11,opacity:0.6}}>Same on all devices · Canvas · No more 7M moves bug</div>
+
+      <div style={{marginTop:12,background:"#111",border:"1px solid #222",borderRadius:10,padding:10}}>
+        <div style={{fontSize:12,fontWeight:700,color:"#ffcc00",marginBottom:6}}>➤ Winners proceeding to {ROUND_NAMES[info.roundIdx+1] || 'FINAL'} — Round {ROUND_NAMES[info.roundIdx]} (wipes after round)</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+          {info.roundWinners.length===0? <span style={{fontSize:11,opacity:0.5}}>No winners yet — first match ongoing...</span> :
+            info.roundWinners.map((n:string,i:number)=><span key={i} style={{background:"#1f1f1f",border:"1px solid #333",borderRadius:12,padding:"4px 8px",fontSize:11}}>{i+1}. {n}</span>)}
+        </div>
+        <div style={{marginTop:8,fontSize:10,opacity:0.5}}>{info.roundWinners.length} / {info.bracket.length/2} winners — list wipes when {ROUND_NAMES[info.roundIdx]} finishes, then new list for next round starts</div>
+      </div>
+
+      {info.lastWinner &&!info.finalCelebration && <div style={{marginTop:10,background:"#0f2a0f",border:"1px solid #22c55e",borderRadius:8,padding:8,fontSize:12,color:"#22c55e"}}>🔊 Last: {info.lastWinner} wins and proceeds!</div>}
     </div>
   </div>;
 }
