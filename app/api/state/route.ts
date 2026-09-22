@@ -1,13 +1,5 @@
 import { NextResponse } from 'next/server'
 import { kv } from '@vercel/kv'
-
-export async function GET() {
-  const data = await kv.get('tournament_v2')
-  return NextResponse.json(data || {})
-}
-
-export async function POST(req: Request) {
-  const data = await req.json()
-  await kv.set('tournament_v2', data)
-  return NextResponse.json({ ok: true })
-}
+const KEY='checkers_tournament_v2'
+export async function GET(){ const d=await kv.get(KEY); return NextResponse.json(d||{}) }
+export async function POST(req:Request){ const d=await req.json(); await kv.set(KEY,d); return NextResponse.json({ok:true}) }
