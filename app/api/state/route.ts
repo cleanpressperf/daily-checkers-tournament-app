@@ -31,7 +31,7 @@ function simulateOne(s:any, RNG:any){
       if(s.roundIdx===4 && newWinners.length===1){
         next.champion=matchWinner; next.roundWinners=newWinners;
         const shuffled=[...ALL_96].sort(()=>RNG()-0.5); const next32=shuffled.slice(0,32);
-        return {bracket:next32,p1:next32[0],p2:next32[1],board:newBoard(),turn:1,roundIdx:0,matchInRound:0,roundWinners:[],champion:null,chain:null,usedPool:shuffled,poolIndex:32};
+        return {bracket:next32,p1:next32[0],p2:next32[1],board:newBoard(),turn:1,roundIdx:0,matchInRound:0,roundWinners:[],champion:null,chain:null};
       } else {
         next.bracket=[...newWinners]; next.roundIdx=s.roundIdx+1; next.matchInRound=0; next.roundWinners=[]; next.p1=next.bracket[0]; next.p2=next.bracket[1]; next.board=newBoard(); next.turn=1; return next;
       }
@@ -48,28 +48,35 @@ function simulateOne(s:any, RNG:any){
   return next;
 }
 
-const FIXED_START = 1758537600000;
+// FAST LIVE VERSION - recent start, cached incremental
+let CACHE_STATE:any=null;
+let CACHE_MOVE=0;
+let CACHE_START=Date.now();
+let RNG:any=mulberry32(123456);
+let INIT_DONE=false;
 
-function computeStateAt(targetMove:number){
-  const RNG=mulberry32(123456);
-  const shuffled=[...ALL_96].sort(()=>RNG()-0.5);
-  const first32=shuffled.slice(0,32);
-  let state:any={bracket:first32,p1:first32[0],p2:first32[1],board:newBoard(),turn:1,roundIdx:0,matchInRound:0,roundWinners:[],champion:null,chain:null,usedPool:shuffled,poolIndex:32};
-  const maxMoves=Math.min(targetMove, 3000);
-  for(let i=0;i<maxMoves;i++){
-    state=simulateOne(state, RNG);
+function ensureInit(){
+  if(!INIT_DONE){
+    RNG=mulberry32(123456);
+    const shuffled=[...ALL_96].sort(()=>RNG()-0.5);
+    const first32=shuffled.slice(0,32);
+    CACHE_STATE={bracket:first32,p1:first32[0],p2:first32[1],board:newBoard(),turn:1,roundIdx:0,matchInRound:0,roundWinners:[],champion:null,chain:null};
+    CACHE_START=Date.now();
+    CACHE_MOVE=0;
+    INIT_DONE=true;
   }
-  return state;
 }
 
 export async function GET(){
-  try{
-    const elapsed=Date.now()-FIXED_START;
-    const targetMove=Math.floor(elapsed/4000);
-    const s=computeStateAt(targetMove);
-    return NextResponse.json({...s, time:Date.now(), move:targetMove, start:FIXED_START}, {headers:{'Cache-Control':'no-store'}});
-  }catch(e){
-    return NextResponse.json({bracket:ALL_96.slice(0,32),p1:ALL_96[0],p2:ALL_96[1],board:newBoard(),turn:1,roundIdx:0,matchInRound:0,roundWinners:[],champion:null,chain:null, error:"fallback"}, {headers:{'Cache-Control':'no-store'}});
+  ensureInit();
+  const elapsed=Date.now()-CACHE_START;
+  const target=Math.floor(elapsed/4000);
+  // only simulate forward, never backward = no jump
+  while(CACHE_MOVE < target){
+    CACHE_STATE=simulateOne(CACHE_STATE, RNG);
+    CACHE_MOVE++;
+    if(CACHE_MOVE>100000) break;
   }
+  return NextResponse.json({...CACHE_STATE, time:Date.now(), move:CACHE_MOVE, start:CACHE_START}, {headers:{'Cache-Control':'no-store'}});
 }
 export async function POST(){ return NextResponse.json({ok:true}); }
