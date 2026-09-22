@@ -20,13 +20,12 @@ function shuffleFisher(arr:string[], rng:any){const a=[...arr];for(let i=a.lengt
 function simulateOne(s:any,RNG:any){
   if(s.finalCelebration) return s;
   if(s.chain){const cur=s.chain;if(!cur||cur.step>=cur.path.length-1){return{...s,board:cur.finalBoard,chain:null,turn:s.turn===1?2:1};}const nb=clone(s.board);const from=cur.path[cur.step];const to=cur.path[cur.step+1];const cap=cur.caps[cur.step];const piece=nb[from.r][from.c];nb[from.r][from.c]=0;if(cap)nb[cap.r][cap.c]=0;nb[to.r][to.c]=piece;if(to.r===9&&piece===1)nb[to.r][to.c]=11;if(to.r===0&&piece===2)nb[to.r][to.c]=22;return{...s,board:nb,chain:{...cur,step:cur.step+1}};}
-  const {caps,moves}=getMoves(s.board,s.turn);let next:any={...s, lastWinner:null};
+  const {caps,moves}=getMoves(s.board,s.turn);let next:any={...s, lastWinner:null, roundJustFinished:false};
   if(caps.length===0&&moves.length===0){
     const winner=s.turn===1?s.p2:s.p1; next.lastWinner=winner;
     const newWinners=[...s.roundWinners,winner];
     if(newWinners.length>=s.bracket.length/2){
       if(s.roundIdx===4 && newWinners.length===1){
-        // TOURNAMENT FINAL WINNER
         return {...s, bracket:[], p1:winner, p2:"", board:newBoard(), roundIdx:4, matchInRound:0, roundWinners:[winner], lastWinner:winner, finalCelebration:true, finalWinner:winner, finalTime:Date.now()};
       }else{
         next.bracket=[...newWinners]; next.roundIdx=s.roundIdx+1; next.matchInRound=0; next.roundWinners=[]; next.p1=next.bracket[0]; next.p2=next.bracket[1]; next.board=newBoard(); next.turn=1; next.roundJustFinished=true; return next;
@@ -56,16 +55,21 @@ export default function Watch(){
     stateRef.current=st;
 
     const speak=(text:string)=>{
-      try{ const u=new SpeechSynthesisUtterance(text); u.rate=0.9; u.pitch=1; speechSynthesis.speak(u);}catch{}
+      try{
+        speechSynthesis.cancel();
+        const u=new SpeechSynthesisUtterance(text);
+        u.volume=1.0; u.rate=0.85; u.pitch=1.1;
+        speechSynthesis.speak(u);
+      }catch{}
     };
     const play=(type:'move'|'capture'|'win')=>{
       if(!soundOn) return;
       try{
         if(!audioRef.current) audioRef.current=new (window.AudioContext||(window as any).webkitAudioContext)();
         const ctx=audioRef.current; const o=ctx.createOscillator(); const g=ctx.createGain(); o.connect(g); g.connect(ctx.destination);
-        if(type==='move'){o.frequency.value=600; g.gain.setValueAtTime(0.2,ctx.currentTime); o.start(); o.stop(ctx.currentTime+0.12);}
-        else if(type==='capture'){o.frequency.value=200; g.gain.setValueAtTime(0.3,ctx.currentTime); o.frequency.exponentialRampToValueAtTime(900,ctx.currentTime+0.25); o.start(); o.stop(ctx.currentTime+0.3);}
-        else if(type==='win'){o.frequency.value=400; g.gain.setValueAtTime(0.4,ctx.currentTime); o.frequency.linearRampToValueAtTime(800,ctx.currentTime+0.5); o.start(); o.stop(ctx.currentTime+0.6);}
+        if(type==='move'){o.frequency.value=650; g.gain.setValueAtTime(0.9,ctx.currentTime); o.start(); o.stop(ctx.currentTime+0.15);}
+        else if(type==='capture'){o.frequency.value=180; g.gain.setValueAtTime(1.0,ctx.currentTime); o.frequency.exponentialRampToValueAtTime(1000,ctx.currentTime+0.3); o.start(); o.stop(ctx.currentTime+0.35);}
+        else if(type==='win'){o.frequency.value=300; g.gain.setValueAtTime(1.0,ctx.currentTime); o.frequency.linearRampToValueAtTime(900,ctx.currentTime+0.6); o.start(); o.stop(ctx.currentTime+0.7);}
       }catch{}
     };
 
@@ -81,7 +85,6 @@ export default function Watch(){
     const tick=()=>{
       draw(stateRef.current.board);
       setInfo({...stateRef.current});
-      // handle winner announcements
       const s=stateRef.current;
       if(s.lastWinner && s.lastWinner!==lastWinnerRef.current){
         lastWinnerRef.current=s.lastWinner;
@@ -90,77 +93,76 @@ export default function Watch(){
           speak(`Tournament champion! ${s.finalWinner}! Tournament champion ${s.finalWinner}!`);
         } else {
           play('win');
-          speak(`${s.lastWinner} wins! Proceeds to ${ROUND_NAMES[s.roundIdx] || 'next round'}`);
+          // FIXED: says NEXT round, not current round
+          const nextRoundName = ROUND_NAMES[s.roundIdx]? ROUND_NAMES[s.roundIdx] : "FINAL";
+          // roundIdx already advanced to next round, so nextRoundName is correct next
+          // If we are in Round of 32 (0) and winner proceeds, roundIdx becomes 1 = Round of 16
+          // For display: if match was Round of 32, announce Round of 16
+          const currentRoundWas = s.roundJustFinished? ROUND_NAMES[s.roundIdx-1] : ROUND_NAMES[s.roundIdx-1] || ROUND_NAMES[0];
+          const announceNext = ROUND_NAMES[s.roundIdx] || "FINAL";
+          if(s.roundIdx===4) speak(`${s.lastWinner} wins! Proceeds to the FINAL!`);
+          else speak(`${s.lastWinner} wins! Proceeds to ${announceNext}`);
         }
       } else {
-        // move sounds
         if(s.chain) play('capture'); else play('move');
       }
     };
 
     tick();
-    let countdownIv:any;
     const iv=setInterval(()=>{
       const s=stateRef.current;
       if(s.finalCelebration){
         const elapsed=Math.floor((Date.now()-s.finalTime)/1000);
-        const remaining=300-elapsed; // 5 min = 300s
+        const remaining=300-elapsed;
         if(remaining<=0){
-          // restart tournament 24/7
           const sh2=shuffleFisher(ALL_96,rngRef.current);
           stateRef.current={bracket:sh2.slice(0,32),p1:sh2[0],p2:sh2[1],board:newBoard(),turn:1,roundIdx:0,matchInRound:0,roundWinners:[],chain:null,finalCelebration:false};
-          lastWinnerRef.current="";
-          speak("New tournament beginning now!");
+          lastWinnerRef.current=""; speak("New tournament beginning now!");
         } else {
-          setInfo({...s, countdown:remaining});
-          draw(s.board);
-          return;
+          setInfo({...s, countdown:remaining}); draw(s.board); return;
         }
       }
       stateRef.current=simulateOne(stateRef.current,rngRef.current);
       tick();
     },4000);
 
-    const enableAudio=()=>{ try{ if(!audioRef.current) audioRef.current=new (window.AudioContext||(window as any).webkitAudioContext)(); audioRef.current.resume(); }catch{} document.removeEventListener('click',enableAudio); };
-    document.addEventListener('click',enableAudio);
-    return()=>{clearInterval(iv); clearInterval(countdownIv); document.removeEventListener('click',enableAudio);};
+    const enableAudio=()=>{ try{ if(!audioRef.current) audioRef.current=new (window.AudioContext||(window as any).webkitAudioContext)(); audioRef.current.resume(); }catch{} };
+    document.addEventListener('click',enableAudio); document.addEventListener('touchstart',enableAudio);
+    return()=>{clearInterval(iv); document.removeEventListener('click',enableAudio); document.removeEventListener('touchstart',enableAudio);};
   },[soundOn]);
 
-  if(!info) return <div style={{background:"#000",color:"#fff",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>Loading global tournament...</div>;
+  if(!info) return <div style={{background:"#000",color:"#fff",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>Loading...</div>;
 
   if(info.finalCelebration){
     const m=Math.floor((info.countdown||300)/60); const s=(info.countdown||300)%60;
     return <div style={{background:"#000",color:"#fff",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20,textAlign:"center"}}>
       <div style={{fontSize:14,color:"#ff3b3b"}}>◎ TOURNAMENT FINISHED</div>
-      <h1 style={{fontSize:38,margin:"20px 0"}}>🏆 {info.finalWinner} 🏆</h1>
-      <div style={{fontSize:20,marginBottom:10}}>TOURNAMENT CHAMPION</div>
-      <div style={{fontSize:16,opacity:0.7,marginBottom:20}}>New tournament in {m}:{s.toString().padStart(2,'0')}</div>
-      <canvas ref={canvasRef} style={{width:320,height:320,borderRadius:16,opacity:0.3}} />
-      <div style={{marginTop:20,fontSize:12,opacity:0.5}}>Announced vocally · 24/7 non-stop</div>
+      <h1 style={{fontSize:42,margin:"20px 0"}}>🏆 {info.finalWinner} 🏆</h1>
+      <div style={{fontSize:20}}>TOURNAMENT CHAMPION</div>
+      <div style={{fontSize:18,marginTop:12,opacity:0.8}}>New tournament in {m}:{s.toString().padStart(2,'0')}</div>
+      <canvas ref={canvasRef} style={{width:300,height:300,borderRadius:16,opacity:0.2,marginTop:20}} />
     </div>;
   }
 
+  const nextRoundLabel = ROUND_NAMES[info.roundIdx] || "FINAL";
+  const prevRoundLabel = info.roundIdx>0? ROUND_NAMES[info.roundIdx-1] : ROUND_NAMES[0];
+
   return <div style={{background:"#000",color:"#fff",minHeight:"100vh",padding:10,display:"flex",flexDirection:"column",alignItems:"center"}}>
     <div style={{width:"100%",maxWidth:560}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div style={{color:"#ff3b3b",fontSize:12,fontWeight:700}}>◎ LIVE GLOBAL · {ROUND_NAMES[info.roundIdx]} · Game {info.matchInRound+1}/ {info.bracket.length/2}</div>
-        <button onClick={()=>setSoundOn(!soundOn)} style={{background:soundOn?"#22c55e":"#333",color:"#fff",border:"none",borderRadius:6,padding:"4px 8px",fontSize:11}}>{soundOn?"🔊 Sound ON":"🔇 Sound OFF"} (tap screen to enable)</button>
+      <div style={{display:"flex",justifyContent:"space-between"}}>
+        <div style={{color:"#ff3b3b",fontSize:12,fontWeight:700}}>◎ LIVE · {prevRoundLabel} · Game {info.matchInRound+1}</div>
+        <button onClick={()=>setSoundOn(!soundOn)} style={{background:soundOn?"#22c55e":"#333",color:"#fff",border:"none",borderRadius:6,padding:"4px 8px",fontSize:11}}>{soundOn?"🔊 LOUD ON - Tap screen":"🔇 OFF"}</button>
       </div>
-      <h2 style={{margin:"10px 0 4px",fontSize:18}}>{info.p1} <span style={{color:"#666"}}>vs</span> {info.p2}</h2>
-      <div style={{color:"#aaa",fontSize:11,marginBottom:8}}>{info.turn===1?info.p1:info.p2} to move · Same on 1M phones</div>
-
+      <h2 style={{margin:"8px 0 4px",fontSize:18}}>{info.p1} <span style={{color:"#666"}}>vs</span> {info.p2}</h2>
       <canvas ref={canvasRef} style={{width:"100%",aspectRatio:"1/1",background:"#3d2814",borderRadius:16,border:"4px solid #5a3e2b",display:"block"}} />
-
       <div style={{marginTop:12,background:"#111",border:"1px solid #222",borderRadius:10,padding:10}}>
-        <div style={{fontSize:12,fontWeight:700,color:"#ffcc00",marginBottom:6}}>➤ Winners proceeding to {ROUND_NAMES[info.roundIdx+1] || 'FINAL'} — Round {ROUND_NAMES[info.roundIdx]} (wipes after round)</div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-          {info.roundWinners.length===0? <span style={{fontSize:11,opacity:0.5}}>No winners yet — first match ongoing...</span> :
+        <div style={{fontSize:12,fontWeight:700,color:"#ffcc00"}}>➤ Winners to {nextRoundLabel} — {prevRoundLabel} just ended = wipe and start new list</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:6}}>
+          {info.roundWinners.length===0? <span style={{fontSize:11,opacity:0.5}}>Waiting first winner...</span> :
             info.roundWinners.map((n:string,i:number)=><span key={i} style={{background:"#1f1f1f",border:"1px solid #333",borderRadius:12,padding:"4px 8px",fontSize:11}}>{i+1}. {n}</span>)}
         </div>
-        <div style={{marginTop:8,fontSize:10,opacity:0.5}}>{info.roundWinners.length} / {info.bracket.length/2} winners — list wipes when {ROUND_NAMES[info.roundIdx]} finishes, then new list for next round starts</div>
       </div>
-
-      {info.lastWinner &&!info.finalCelebration && <div style={{marginTop:10,background:"#0f2a0f",border:"1px solid #22c55e",borderRadius:8,padding:8,fontSize:12,color:"#22c55e"}}>🔊 Last: {info.lastWinner} wins and proceeds!</div>}
+      {info.lastWinner && <div style={{marginTop:10,background:"#0f2a0f",border:"1px solid #22c55e",borderRadius:8,padding:8,fontSize:13,color:"#22c55e"}}>🔊 {info.lastWinner} wins → Proceeds to {nextRoundLabel}</div>}
     </div>
   </div>;
 }
