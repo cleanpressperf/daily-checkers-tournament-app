@@ -9,7 +9,7 @@ function isOpponent(p:Piece,t:Piece){ if(t===0) return false; const isP1=p===1||
 function clone(b:Piece[][]){return b.map(r=>[...r]);}
 function findCaptures(board:Piece[][], r:number,c:number, piece:Piece, visited:Set<string>): any[] {
   const results:any[]=[]; const isKing=piece===11||piece===22;
-  if(!isKing){ for(let d of DIRS){ const mr=r+d.r, mc=c+d.c, lr=r+d.r*2, lc=c+d.c*2; if(!inside(lr,lc)||!inside(mr,mc)) continue; if(!isOpponent(piece, board[mr][mc])) continue; if(board[lr][lc]!==0) continue; const key=`${mr},${mc}`; if(visited.has(key)) continue; const nb=clone(board); nb[mr][mc]=0; nb[r][c]=0; nb[lr][lc]=piece; if(lr===9&&piece===1) nb[lr][lc]=11; if(lr===0&&piece===2) nb[lr][lc]=22; const nVisited=new Set(visited); nVisited.add(key); const further=findCaptures(nb,lr,lc,nb[lr][lc],nVisited); if(further.length){ further.forEach((f:any)=> results.push({path:[{r,c},...f.path], caps:[{r:mr,c:mc},...f.caps], finalBoard:f.finalBoard})); } else { results.push({path:[{r,c},{r:lr,c:lc}], caps:[{r:mr,c:mc}], finalBoard:nb}); } } } else { for(let d of DIRS){ let rr=r+d.r, cc=c+d.c; while(inside(rr,cc) && board[rr][cc]===0){ rr+=d.r; cc+=d.c; } if(!inside(rr,cc)) continue; if(!isOpponent(piece, board[rr][cc])) continue; const cap={r:rr,c:cc}; const key=`${rr},${cc}`; if(visited.has(key)) continue; let lr=rr+d.r, lc=cc+d.c; while(inside(lr,lc) && board[lr][lc]===0){ const nb=clone(board); nb[rr][cc]=0; nb[r][c]=0; nb[lr][lc]=piece; const nVisited=new Set(visited); nVisited.add(key); const further=findCaptures(nb,lr,lc,piece,nVisited); if(further.length){ further.forEach((f:any)=> results.push({path:[{r,c},{r:lr,c:lc},...f.path.slice(1)], caps:[cap,...f.caps], finalBoard:f.finalBoard})); } else { results.push({path:[{r,c},{r:lr,c:lc}], caps:[cap], finalBoard:nb}); } lr+=d.r; lc+=d.c; } } } return results;
+  if(!isKing){ for(let d of DIRS){ const mr=r+d.r, mc=c+d.c, lr=r+d.r*2, lc=c+d.c*2; if(!inside(lr,lc)||!inside(mr,mc)) continue; if(!isOpponent(piece, board[mr][mc])) continue; if(board[lr][lc]!==0) continue; const key=`${mr},${mc}`; if(visited.has(key)) continue; const nb=clone(board); nb[mr][mc]=0; nb[r][c]=0; nb[lr][lc]=piece; if(lr===9&&piece===1) nb[lr][lc]=11; if(lr===0&&piece===2) nb[lr][nc]=22; const nVisited=new Set(visited); nVisited.add(key); const further=findCaptures(nb,lr,lc,nb[lr][lc],nVisited); if(further.length){ further.forEach((f:any)=> results.push({path:[{r,c},...f.path], caps:[{r:mr,c:mc},...f.caps], finalBoard:f.finalBoard})); } else { results.push({path:[{r,c},{r:lr,c:lc}], caps:[{r:mr,c:mc}], finalBoard:nb}); } } } else { for(let d of DIRS){ let rr=r+d.r, cc=c+d.c; while(inside(rr,cc) && board[rr][cc]===0){ rr+=d.r; cc+=d.c; } if(!inside(rr,cc)) continue; if(!isOpponent(piece, board[rr][cc])) continue; const cap={r:rr,c:cc}; const key=`${rr},${cc}`; if(visited.has(key)) continue; let lr=rr+d.r, lc=cc+d.c; while(inside(lr,lc) && board[lr][lc]===0){ const nb=clone(board); nb[rr][cc]=0; nb[r][c]=0; nb[lr][lc]=piece; const nVisited=new Set(visited); nVisited.add(key); const further=findCaptures(nb,lr,lc,piece,nVisited); if(further.length){ further.forEach((f:any)=> results.push({path:[{r,c},{r:lr,c:lc},...f.path.slice(1)], caps:[cap,...f.caps], finalBoard:f.finalBoard})); } else { results.push({path:[{r,c},{r:lr,c:lc}], caps:[cap], finalBoard:nb}); } lr+=d.r; lc+=d.c; } } } return results;
 }
 function getAllMoves(board:Piece[][], turn:1|2){ let allCaps:any[]=[]; for(let r=0;r<10;r++) for(let c=0;c<10;c++){ const p=board[r][c]; if(p===0) continue; const isP1=p===1||p===11; if((turn===1&&!isP1)||(turn===2&&isP1)) continue; const caps=findCaptures(board,r,c,p,new Set()); caps.forEach(cap=> allCaps.push({...cap,from:{r,c}})); } if(allCaps.length){ const max=Math.max(...allCaps.map((x:any)=>x.caps.length)); allCaps=allCaps.filter((x:any)=>x.caps.length===max); return {caps:allCaps, moves:[]}; } const moves:any[]=[]; for(let r=0;r<10;r++) for(let c=0;c<10;c++){ const p=board[r][c]; if(p===0) continue; const isP1=p===1||p===11; if((turn===1&&!isP1)||(turn===2&&isP1)) continue; const isKing=p===11||p===22; if(!isKing){ const dirs=p===1?[{r:1,c:-1},{r:1,c:1}]:[{r:-1,c:-1},{r:-1,c:1}]; dirs.forEach(d=>{ const nr=r+d.r,nc=c+d.c; if(inside(nr,nc)&&board[nr][nc]===0) moves.push({from:{r,c},to:{r:nr,c:nc},board:(()=>{const nb=clone(board); nb[r][c]=0; nb[nr][nc]=p; if(nr===9&&p===1) nb[nr][nc]=11; if(nr===0&&p===2) nb[nr][nc]=22; return nb;})()}); }); } else { DIRS.forEach(d=>{ let nr=r+d.r,nc=c+d.c; while(inside(nr,nc)&&board[nr][nc]===0){ const nb=clone(board); nb[r][c]=0; nb[nr][nc]=p; moves.push({from:{r,c},to:{r:nr,c:nc},board:nb}); nr+=d.r; nc+=d.c; } }); } } return {caps:[], moves};}
 function playSound(type:'move'|'capture'|'chain'|'win'|'round'){ try{ const ctx=new (window.AudioContext||(window as any).webkitAudioContext)(); const o=ctx.createOscillator(); const g=ctx.createGain(); o.connect(g); g.connect(ctx.destination); if(type==='move'){ o.frequency.value=420; g.gain.value=0.2; o.start(); setTimeout(()=>{o.frequency.value=680;},80); o.stop(ctx.currentTime+0.18); } else if(type==='capture'){ o.frequency.value=200; g.gain.value=0.4; o.start(); o.frequency.exponentialRampToValueAtTime(900,ctx.currentTime+0.15); o.stop(ctx.currentTime+0.25); } else if(type==='chain'){ o.frequency.value=800; g.gain.value=0.3; o.start(); o.frequency.value=1200; o.stop(ctx.currentTime+0.12); } else if(type==='round'){ o.frequency.value=500; g.gain.value=0.5; o.start(); o.frequency.linearRampToValueAtTime(1000,ctx.currentTime+0.5); o.stop(ctx.currentTime+0.6); } else { o.frequency.value=300; g.gain.value=0.6; o.start(); o.frequency.linearRampToValueAtTime(1200,ctx.currentTime+0.8); o.stop(ctx.currentTime+1); } }catch{} }
@@ -19,13 +19,12 @@ export default function Watch(){
   const [s,setS]=useState<any>(null); const timerRef=useRef<any>(null); const [isLeader,setIsLeader]=useState(false); const tabId=useRef(Math.random().toString(36).slice(2));
   const [announce,setAnnounce]=useState<any>(null); const countdownRef=useRef<any>(null);
 
-  // LEADER ELECTION - stops dragging fight
   useEffect(()=>{
     const checkLeader=()=>{
       const leader = localStorage.getItem('checkers_leader');
       const leaderTime = parseInt(localStorage.getItem('checkers_leader_time')||'0');
       const now=Date.now();
-      if(!leader || now-leaderTime>7000){ // leader dead
+      if(!leader || now-leaderTime>7000){
         localStorage.setItem('checkers_leader', tabId.current);
         localStorage.setItem('checkers_leader_time', now.toString());
         setIsLeader(true);
@@ -53,31 +52,43 @@ export default function Watch(){
       setS(d);
     };
     init();
+
     const fastSync=async()=>{
       const d=await fetch('/api/state?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).catch(()=>null);
       if(d?.bracket?.length){
         setS((prev:any)=>{
           if(!prev) return d;
-          // if leader, don't overwrite your own move in progress
           if(isLeader && d.time===prev.time) return prev;
           return d;
         });
       }
     };
-    const onVisible=()=>{ if(document.visibilityState==='visible') fastSync(); };
+
+    const onVisible=async()=>{
+      if(document.visibilityState==='visible'){
+        if(timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current=null;
+        const d=await fetch('/api/state?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).catch(()=>null);
+        if(d?.bracket?.length) setS(d);
+      } else {
+        if(timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current=null;
+      }
+    };
+
     document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('focus', fastSync);
-    const poll=setInterval(fastSync, 2000);
-    return()=>{ clearInterval(poll); document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('focus', fastSync); };
+    window.addEventListener('focus', onVisible);
+    const poll=setInterval(()=>{ if(document.visibilityState==='visible') fastSync(); }, 2000);
+    return()=>{ clearInterval(poll); document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('focus', onVisible); };
   },[isLeader]);
 
   useEffect(()=>{ if(!announce) return; countdownRef.current=setInterval(()=>{ setAnnounce((a:any)=>{ if(!a) return null; if(a.countdown<=1){ clearInterval(countdownRef.current); return null; } return {...a,countdown:a.countdown-1}; }); },1000); return()=>clearInterval(countdownRef.current); },[announce?.type]);
   useEffect(()=>{ if(announce) return; if(!s) return; if(s._pendingNext){ const next=s._pendingNext; delete next._pendingNext; setS(next); fetch('/api/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(next)}); } },[announce]);
 
-  // ONLY LEADER moves the game - fixes dragging
   useEffect(()=>{
     if(!isLeader) return;
     if(!s||s.champion||announce||s._pendingNext) return;
+    if(document.visibilityState!=='visible') return;
     if(s.chain){
       timerRef.current=setTimeout(async()=>{
         const cur=s.chain; if(!cur||cur.step>=cur.path.length-1){ const next={...s,board:cur.finalBoard,chain:null,time:Date.now()}; next.turn=s.turn===1?2:1; setS(next); await fetch('/api/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(next)}); timerRef.current=null; playSound('chain'); return; }
@@ -127,6 +138,6 @@ export default function Watch(){
       <div style={{fontSize:10,opacity:0.5}}>PROCEEDING TO {ROUND_NAMES[s.roundIdx+1]||"NEXT"} ({s.roundWinners.length}/{Math.ceil(s.bracket.length/2)})</div>
       <div style={{fontSize:11,marginTop:4}}>{s.roundWinners.length? s.roundWinners.map((n:string,i:number)=><span key={i} style={{background:"#222",padding:"2px 6px",borderRadius:4,margin:"2px",display:"inline-block"}}>{n}</span>): <span style={{opacity:0.3}}>— winners add here, clears each round —</span>}</div>
     </div>
-    <div style={{fontSize:9,opacity:0.25,marginTop:8,textAlign:"center"}}>Leader election • no drag fight • king locked • 🔊 sound restored • {isLeader?"You are leader":"Watching leader"}</div>
+    <div style={{fontSize:9,opacity:0.25,marginTop:8,textAlign:"center"}}>Instant snap on return • no drag • leader only moves • sound 🔊 restored • king locked</div>
   </div>;
 }
