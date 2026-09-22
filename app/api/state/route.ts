@@ -13,12 +13,8 @@ function findCaptures(board:Piece[][], r:number,c:number, piece:Piece, visited:S
   if(!isKing){ for(let d of DIRS){ const mr=r+d.r, mc=c+d.c, lr=r+d.r*2, lc=c+d.c*2; if(!inside(lr,lc)||!inside(mr,mc)) continue; if(!isOpponent(piece, board[mr][mc])) continue; if(board[lr][lc]!==0) continue; const key=`${mr},${mc}`; if(visited.has(key)) continue; const nb=clone(board); nb[mr][mc]=0; nb[r][c]=0; nb[lr][lc]=piece; if(lr===9&&piece===1) nb[lr][lc]=11; if(lr===0&&piece===2) nb[lr][nc]=22; const nVisited=new Set(visited); nVisited.add(key); const further=findCaptures(nb,lr,lc,nb[lr][lc],nVisited); if(further.length){ further.forEach((f:any)=> results.push({path:[{r,c},...f.path], caps:[{r:mr,c:mc},...f.caps], finalBoard:f.finalBoard})); } else { results.push({path:[{r,c},{r:lr,c:lc}], caps:[{r:mr,c:mc}], finalBoard:nb}); } } } else { for(let d of DIRS){ let rr=r+d.r, cc=c+d.c; while(inside(rr,cc) && board[rr][cc]===0){ rr+=d.r; cc+=d.c; } if(!inside(rr,cc)) continue; if(!isOpponent(piece, board[rr][cc])) continue; const cap={r:rr,c:cc}; const key=`${rr},${cc}`; if(visited.has(key)) continue; let lr=rr+d.r, lc=cc+d.c; while(inside(lr,lc) && board[lr][lc]===0){ const nb=clone(board); nb[rr][cc]=0; nb[r][c]=0; nb[lr][lc]=piece; const nVisited=new Set(visited); nVisited.add(key); const further=findCaptures(nb,lr,lc,piece,nVisited); if(further.length){ further.forEach((f:any)=> results.push({path:[{r,c},{r:lr,c:lc},...f.path.slice(1)], caps:[cap,...f.caps], finalBoard:f.finalBoard})); } else { results.push({path:[{r,c},{r:lr,c:lc}], caps:[cap], finalBoard:nb}); } lr+=d.r; lc+=d.c; } } } return results;
 }
 function getAllMoves(board:Piece[][], turn:1|2){ let allCaps:any[]=[]; for(let r=0;r<10;r++) for(let c=0;c<10;c++){ const p=board[r][c]; if(p===0) continue; const isP1=p===1||p===11; if((turn===1&&!isP1)||(turn===2&&isP1)) continue; const caps=findCaptures(board,r,c,p,new Set()); caps.forEach(cap=> allCaps.push({...cap,from:{r,c}})); } if(allCaps.length){ const max=Math.max(...allCaps.map((x:any)=>x.caps.length)); allCaps=allCaps.filter((x:any)=>x.caps.length===max); return {caps:allCaps, moves:[]}; } const moves:any[]=[]; for(let r=0;r<10;r++) for(let c=0;c<10;c++){ const p=board[r][c]; if(p===0) continue; const isP1=p===1||p===11; if((turn===1&&!isP1)||(turn===2&&isP1)) continue; const isKing=p===11||p===22; if(!isKing){ const dirs=p===1?[{r:1,c:-1},{r:1,c:1}]:[{r:-1,c:-1},{r:-1,c:1}]; dirs.forEach(d=>{ const nr=r+d.r,nc=c+d.c; if(inside(nr,nc)&&board[nr][nc]===0) moves.push({from:{r,c},to:{r:nr,c:nc},board:(()=>{const nb=clone(board); nb[r][c]=0; nb[nr][nc]=p; if(nr===9&&p===1) nb[nr][nc]=11; if(nr===0&&p===2) nb[nr][nc]=22; return nb;})()}); }); } else { DIRS.forEach(d=>{ let nr=r+d.r,nc=c+d.c; while(inside(nr,nc)&&board[nr][nc]===0){ const nb=clone(board); nb[r][c]=0; nb[nr][nc]=p; moves.push({from:{r,c},to:{r:nr,c:nc},board:nb}); nr+=d.r; nc+=d.c; } }); } } return {caps:[], moves};}
-// seeded RNG - same worldwide
 function mulberry32(a:number){ return function(){ let t=a+=0x6D2B79F5; t=Math.imul(t^t>>>15,t|1); t^=t+Math.imul(t^t>>>7,t|61); return ((t^t>>>14)>>>0)/4294967296; } }
-let SEED=123456;
-let RNG=mulberry32(SEED);
-
-function simulateOne(s:any){
+function simulateOne(s:any, RNG:any){
   if(s.champion) return s;
   if(s.chain){
     const cur=s.chain;
@@ -33,11 +29,9 @@ function simulateOne(s:any){
     const matchWinner=s.turn===1? s.p2:s.p1; const newWinners=[...s.roundWinners,matchWinner];
     if(newWinners.length>=s.bracket.length/2){
       if(s.roundIdx===4 && newWinners.length===1){
-        next.champion=matchWinner; next.roundWinners=newWinners; next.time=Date.now();
-        // new tournament seed
+        next.champion=matchWinner; next.roundWinners=newWinners;
         const shuffled=[...ALL_96].sort(()=>RNG()-0.5); const next32=shuffled.slice(0,32);
-        next._nextTournament={bracket:next32,p1:next32[0],p2:next32[1],board:newBoard(),turn:1,roundIdx:0,matchInRound:0,roundWinners:[],champion:null,chain:null,usedPool:shuffled,poolIndex:32, startMove:0};
-        return next;
+        return {bracket:next32,p1:next32[0],p2:next32[1],board:newBoard(),turn:1,roundIdx:0,matchInRound:0,roundWinners:[],champion:null,chain:null,usedPool:shuffled,poolIndex:32};
       } else {
         next.bracket=[...newWinners]; next.roundIdx=s.roundIdx+1; next.matchInRound=0; next.roundWinners=[]; next.p1=next.bracket[0]; next.p2=next.bracket[1]; next.board=newBoard(); next.turn=1; return next;
       }
@@ -49,44 +43,29 @@ function simulateOne(s:any){
       next.board=nb; next.chain={path:best.path,caps:best.caps,finalBoard:best.finalBoard,step:1};
     } else { next.board=best.finalBoard; next.turn=s.turn===1?2:1; }
   } else {
-    moves.sort((a,b)=>{ const ac=Math.abs(a.to.c-4.5), bc=Math.abs(b.to.c-4.5); return ac-bc; });
     const chosen=moves[Math.floor(RNG()*Math.min(3,moves.length))]; next.board=chosen.board; next.turn=s.turn===1?2:1;
   }
   return next;
 }
 
-// GLOBAL persistent state simulation
-let GLOBAL_STATE:any=null;
-let GLOBAL_START=Date.now();
-let GLOBAL_MOVE=0;
+const FIXED_START = 1717200000000;
 
-function getGlobalState(){
-  if(!GLOBAL_STATE){
-    RNG=mulberry32(SEED);
-    const shuffled=[...ALL_96].sort(()=>RNG()-0.5);
-    const first32=shuffled.slice(0,32);
-    GLOBAL_STATE={bracket:first32,p1:first32[0],p2:first32[1],board:newBoard(),turn:1,roundIdx:0,matchInRound:0,roundWinners:[],champion:null,chain:null,usedPool:shuffled,poolIndex:32};
-    GLOBAL_START=Date.now();
-    GLOBAL_MOVE=0;
+function computeStateAt(targetMove:number){
+  const RNG=mulberry32(123456);
+  const shuffled=[...ALL_96].sort(()=>RNG()-0.5);
+  const first32=shuffled.slice(0,32);
+  let state:any={bracket:first32,p1:first32[0],p2:first32[1],board:newBoard(),turn:1,roundIdx:0,matchInRound:0,roundWinners:[],champion:null,chain:null,usedPool:shuffled,poolIndex:32};
+  for(let i=0;i<targetMove;i++){
+    state=simulateOne(state, RNG);
+    if(i>20000) break; // safety cap
   }
-  const elapsed=Date.now()-GLOBAL_START;
-  const targetMove=Math.floor(elapsed/4000);
-  while(GLOBAL_MOVE<targetMove){
-    const prevBracket=JSON.stringify(GLOBAL_STATE.bracket);
-    GLOBAL_STATE=simulateOne(GLOBAL_STATE);
-    GLOBAL_MOVE++;
-    if(GLOBAL_STATE._nextTournament){
-      GLOBAL_STATE=GLOBAL_STATE._nextTournament;
-      GLOBAL_STATE.startMove=GLOBAL_MOVE;
-    }
-    // safety: max 500 moves per request to avoid loop
-    if(GLOBAL_MOVE-targetMove>500) break;
-  }
-  return GLOBAL_STATE;
+  return state;
 }
 
 export async function GET(){
-  const s=getGlobalState();
-  return NextResponse.json({...s, time:Date.now(), move: GLOBAL_MOVE, start: GLOBAL_START}, {headers:{'Cache-Control':'no-store'}});
+  const elapsed=Date.now()-FIXED_START;
+  const targetMove=Math.floor(elapsed/4000);
+  const s=computeStateAt(targetMove);
+  return NextResponse.json({...s, time:Date.now(), move:targetMove, start:FIXED_START}, {headers:{'Cache-Control':'no-store'}});
 }
 export async function POST(){ return NextResponse.json({ok:true}); }
