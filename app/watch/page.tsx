@@ -1,6 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 const ALL_96=["Marlo Stanfield","Thomas Shelby","Arthur Shelby","John Shelby","Finn Shelby","Michael Gray","Polly Gray","Ada Shelby","Isaiah Jesus","Jeremiah Jesus","Jimmy McCavern","Aberama Gold","Alfie Solomons","Luca Changretta","Michael Corleone","Vito Corleone","Sonny Corleone","Tom Hagen","Omar Little","Stringer Bell","Avon Barksdale","Jimmy McNulty","Lester Freamon","Franklin Saint","Leon Simmons","Jerome Saint","Teddy McDonald","Manboy","Gustavo Fring","Esme Shelby","Lizzie Stark","Freddie Thorne","Grace Burgess","May Carleton","Billy Kimber","Darby Sabini","Oswald Mosley","Winston Churchill","Johnny Dogs","Curly","Jack Nelson","Bodie Broadus","Slim Charles","Snoop Pearson","Bunk Moreland","Kima Greggs","Connie Corleone","Kay Adams","Apollonia Vitelli","Moe Greene","Hyman Roth","Cissy Saint","Kane Hamilton","Rob Volpe","Andre Wright","Walter White","Jesse Pinkman","Saul Goodman","Hank Schrader","Mike Ehrmantraut","Pablo Escobar","Javier Pena","Steve Murphy","Tommy Shelby Jr","John Watson","Sherlock Holmes","James Moriarty","Tony Soprano","Paulie Gualtieri","Silvio Dante","Christopher Moltisanti","Tony Montana","Manny Ribera","Nucky Thompson","Al Capone","Lucky Luciano","Bugsy Siegel","Meyer Lansky","Dutch Schultz","Arnold Rothstein","Frank Costello","Vito Genovese","Carlo Gambino","John Gotti","Sammy Gravano","Whitey Bulger","Ray Donovan","Mickey Donovan","Terry Donovan","Daryl Donovan","Bunchy Donovan","Sully Sullivan","James Donovan","Fitzgerald","Devereaux","Cousin Mickey","Zion"];
+
+// --- ONLY SPLIT ADDED - NO OTHER CHANGE ---
+const BRONZE_32 = ALL_96.slice(0,32);
+const SILVER_32 = ALL_96.slice(32,64);
+const GOLD_32 = ALL_96.slice(64,96);
+
 const ROUND_NAMES=["Round of 32","Round of 16","Quarterfinal","Semifinal","FINAL"];
 type Piece=0|1|2|11|22;
 const DIRS=[{r:-1,c:-1},{r:-1,c:1},{r:1,c:-1},{r:1,c:1}];
@@ -18,7 +25,7 @@ function getMoves(board:Piece[][],turn:1|2){let allCaps:any[]=[];for(let r=0;r<1
 function mulberry32(a:number){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}}
 function shuffleFisher(arr:string[], rng:any){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function simulateOne(s:any,RNG:any){
-  if(s.finalCelebration){ const elapsed=Math.floor((Date.now()-s.finalTime)/1000); if(elapsed>=300){ const sh2=shuffleFisher(ALL_96,RNG); return {bracket:sh2.slice(0,32),p1:sh2[0],p2:sh2[1],board:newBoard(),turn:RNG()>0.5?1:2,roundIdx:0,matchInRound:0,roundWinners:[],chain:null,finalCelebration:false, lastWinner:null, nextRoundLabel:null}; } return s; }
+  if(s.finalCelebration){ const elapsed=Math.floor((Date.now()-s.finalTime)/1000); if(elapsed>=300){ const sh2=shuffleFisher(s.tierList,RNG); return {bracket:sh2.slice(0,32),p1:sh2[0],p2:sh2[1],board:newBoard(),turn:RNG()>0.5?1:2,roundIdx:0,matchInRound:0,roundWinners:[],chain:null,finalCelebration:false, lastWinner:null, nextRoundLabel:null, tierList:s.tierList, tierName:s.tierName}; } return s; }
   if(s.chain){const cur=s.chain;if(!cur||cur.step>=cur.path.length-1){return{...s,board:cur.finalBoard,chain:null,turn:s.turn===1?2:1};}const nb=clone(s.board);const from=cur.path[cur.step];const to=cur.path[cur.step+1];const cap=cur.caps[cur.step];const piece=nb[from.r][from.c];nb[from.r][from.c]=0;if(cap)nb[cap.r][cap.c]=0;nb[to.r][to.c]=piece;if(to.r===9&&piece===1)nb[to.r][to.c]=11;if(to.r===0&&piece===2)nb[to.r][to.c]=22;return{...s,board:nb,chain:{...cur,step:cur.step+1}};}
   const {caps,moves}=getMoves(s.board,s.turn);let next:any={...s, lastWinner:null, nextRoundLabel:null};
   if(caps.length===0&&moves.length===0){
@@ -34,7 +41,11 @@ function simulateOne(s:any,RNG:any){
   return next;
 }
 
-export default function Watch(){
+function WatchInner(){
+  const searchParams = useSearchParams();
+  const tierParam = (searchParams.get("t") || "bronze").toLowerCase();
+  const tierList = tierParam==="silver"? SILVER_32 : tierParam==="gold"? GOLD_32 : BRONZE_32;
+  const tierName = tierParam==="silver"? "SILVER" : tierParam==="gold"? "GOLD" : "BRONZE";
   const canvasRef=useRef<HTMLCanvasElement>(null);
   const [info,setInfo]=useState<any>(null);
   const stateRef=useRef<any>(null);
@@ -43,29 +54,28 @@ export default function Watch(){
   const lastWinnerRef=useRef<string>("");
 
   useEffect(()=>{
-    const RNG=mulberry32(123456); rngRef.current=RNG;
-    const SAVE_KEY="tourney_continuous_v5";
+    const RNG=mulberry32(tierName==="SILVER"? 223456 : tierName==="GOLD"? 323456 : 123456); rngRef.current=RNG;
+    const SAVE_KEY=`tourney_continuous_v5_${tierName}`;
     const nowTicks=Math.floor(Date.now()/4000);
 
-    // LOAD SAVED + FAST-FORWARD MISSED TIME (fixes your 2-hour bug)
     let st:any=null;
     try{
       const saved=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
       if(saved && saved.ticks){
         st=saved.state;
         const missed=Math.max(0, nowTicks - saved.ticks);
-        // Fast-forward instantly - up to 5000 moves in <1 sec
         const toSim=Math.min(missed, 8000);
         for(let i=0;i<toSim;i++){ st=simulateOne(st,RNG); }
       }
     }catch{}
 
     if(!st){
-      const sh=shuffleFisher(ALL_96,RNG);
-      st={bracket:sh.slice(0,32),p1:sh[0],p2:sh[1],board:newBoard(),turn:RNG()>0.5?1:2,roundIdx:0,matchInRound:0,roundWinners:[],chain:null,finalCelebration:false};
-      // Global sync for first ever load - 5.5 hours cycle, not 40 min
+      const sh=shuffleFisher(tierList,RNG);
+      st={bracket:sh.slice(0,32),p1:sh[0],p2:sh[1],board:newBoard(),turn:RNG()>0.5?1:2,roundIdx:0,matchInRound:0,roundWinners:[],chain:null,finalCelebration:false, tierList: tierList, tierName: tierName};
       const globalMove = nowTicks % 5000;
       for(let i=0;i<globalMove;i++) st=simulateOne(st,RNG);
+    } else {
+      st.tierList = tierList; st.tierName = tierName;
     }
     stateRef.current=st;
 
@@ -104,13 +114,13 @@ export default function Watch(){
     const enableAudio=()=>{ try{ if(!audioRef.current) audioRef.current=new (window.AudioContext||(window as any).webkitAudioContext)(); audioRef.current.resume(); }catch{} };
     document.addEventListener('click',enableAudio); document.addEventListener('touchstart',enableAudio);
     return()=>{clearInterval(iv); document.removeEventListener('click',enableAudio); document.removeEventListener('touchstart',enableAudio);};
-  },[]);
+  },[tierParam]);
 
   if(!info) return <div style={{background:"#000",color:"#fff",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>Loading continuous tournament...</div>;
   if(info.finalCelebration){
     const elapsed=Math.floor((Date.now()-info.finalTime)/1000); const remaining=Math.max(0,300-elapsed); const m=Math.floor(remaining/60); const s=remaining%60;
     return <div style={{background:"#000",color:"#fff",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20,textAlign:"center"}}>
-      <div style={{color:"#ff3b3b"}}>◎ TOURNAMENT FINISHED</div>
+      <div style={{color:"#ff3b3b"}}>◎ TOURNAMENT FINISHED - {info.tierName}</div>
       <h1 style={{fontSize:42,margin:"20px 0"}}>🏆 {info.finalWinner} 🏆</h1>
       <div>CHAMPION — New in {m}:{s.toString().padStart(2,'0')}</div>
       <canvas ref={canvasRef} style={{width:300,height:300,borderRadius:16,opacity:0.2,marginTop:20}} />
@@ -122,7 +132,7 @@ export default function Watch(){
   const blackPlayer = info.p1; const redPlayer = info.p2; const turnName = info.turn===1? blackPlayer : redPlayer;
   return <div style={{background:"#000",color:"#fff",minHeight:"100vh",padding:10,display:"flex",flexDirection:"column",alignItems:"center"}}>
     <div style={{width:"100%",maxWidth:560}}>
-      <div style={{color:"#ff3b3b",fontSize:12,fontWeight:700}}>◎ LIVE 24/7 CONTINUOUS · {currentRound} · Tap once for 🔊 fade sound</div>
+      <div style={{color:"#ff3b3b",fontSize:12,fontWeight:700}}>◎ LIVE {info.tierName} 24/7 · {currentRound} · Tap once for 🔊 fade sound</div>
       <h2 style={{margin:"8px 0 4px",fontSize:16}}>{blackPlayer} <span style={{background:"#111",color:"#fff",padding:"2px 6px",borderRadius:4,fontSize:10}}>BLACK</span> vs {redPlayer} <span style={{background:"#c1272d",color:"#fff",padding:"2px 6px",borderRadius:4,fontSize:10}}>RED</span></h2>
       <div style={{fontSize:11,opacity:0.7,marginBottom:6}}>Turn: {turnName} — {info.turn===1?'Black pieces':'Red pieces'} · Continuous even when closed</div>
       <canvas ref={canvasRef} style={{width:"100%",aspectRatio:"1/1",background:"#3d2814",borderRadius:16,border:"4px solid #5a3e2b",display:"block"}} />
@@ -136,4 +146,9 @@ export default function Watch(){
       {info.lastWinner && <div style={{marginTop:10,background:"#0f2a0f",border:"1px solid #22c55e",borderRadius:8,padding:10,fontSize:13,color:"#22c55e"}}>🔊 {info.lastWinner} wins {currentRound}! Proceeds to {nextRound}</div>}
     </div>
   </div>;
+}
+
+import { Suspense } from "react";
+export default function Watch(){
+  return <Suspense fallback={<div style={{background:"#000",color:"#fff",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>Loading...</div>}><WatchInner/></Suspense>
 }
