@@ -1,340 +1,139 @@
 "use client";
-import { useSearchParams } from "next/navigation";
-import { useEffect, useState, Suspense, useRef } from "react";
-
-const BOT_NAMES_96 = [
-  "Marlo Stanfield","Thomas Shelby","Arthur Shelby","John Shelby","Finn","Michael Gray","Polly Gray","Ada Shelby","Isaiah","Jeremiah","Jimmy MC Cavin","Aberama Gold","Mrs. Changretta","Alfie Solomons","Luca Changretta","Shank","Michael Corleone","Vito Corleone","Sonny Corleone","Fredo Corleone","Tom Hagen","Don Barzini","Carlo Rizzi","Omar Little","Stringer Bell","Avon Barksdale","Jimmy McNulty","Lester Freamon","Proposition Joe","Franklin Saint","Leon Simmons","Jerome Saints",
-  "Louie Saints","Teddy McDonald","Manboy","Gustavo","Esme Shelby","Lizzie Stark","Freddie Thornes","Grace Burgess","May Carleton","Billy Kimber","Darby Sabini","Oswald Mosley","Winston Churchill","Johnny Dogs","Curly","Jack Nelson","Bodie Broadus","Slim","Snoop","Michael","D'Angelo","Fat Rick","Chris","Spider","Wee-bey Brice","Brother Mouzone","Bubble","Dukie","Namond Brice","Clay Davis","Bunk","Kima",
-  "Cheese","Hungry Man","Cutty","Skully","Ray-Ray","Connie Corleone","Kay Adams","Apollonia","Luca Brasi","Salvatore Tessio","Peter Clemenza","Moe Greene","Hyman Roth","Rothschild","Rocco Lampone","Don Fanucci","Vincent Mancini","Carmine Cuneo","Emilio Barzini","Johnny Fontane","Khadija","Wanda","Irene Abe","Matt McDonald","Cissy Saints","Kane Hamilton","Rob Volpe","Soledad","Parissa","Andre Wright","Claudia came","Kevin Hamilton"
-];
-
-const ROUND_NAMES:Record<number,string> = {32:"Round of 32",16:"Round of 16",8:"Quarter Final",4:"Semi Final",2:"Final"};
-
-type Piece = 0|1|2|3|4; //0 empty,1 b-man,2 w-man,3 b-king,4 w-king
-
-function speak(text:string){
-  try{
-    if(!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.rate=0.95; u.pitch=1; u.volume=0.9;
-    window.speechSynthesis.speak(u);
-  }catch{}
+import { useEffect, useRef, useState } from "react";
+const ALL_96=["Marlo Stanfield","Thomas Shelby","Arthur Shelby","John Shelby","Finn Shelby","Michael Gray","Polly Gray","Ada Shelby","Isaiah Jesus","Jeremiah Jesus","Jimmy McCavern","Aberama Gold","Alfie Solomons","Luca Changretta","Michael Corleone","Vito Corleone","Sonny Corleone","Tom Hagen","Omar Little","Stringer Bell","Avon Barksdale","Jimmy McNulty","Lester Freamon","Franklin Saint","Leon Simmons","Jerome Saint","Teddy McDonald","Manboy","Gustavo Fring","Esme Shelby","Lizzie Stark","Freddie Thorne","Grace Burgess","May Carleton","Billy Kimber","Darby Sabini","Oswald Mosley","Winston Churchill","Johnny Dogs","Curly","Jack Nelson","Bodie Broadus","Slim Charles","Snoop Pearson","Bunk Moreland","Kima Greggs","Connie Corleone","Kay Adams","Apollonia Vitelli","Moe Greene","Hyman Roth","Cissy Saint","Kane Hamilton","Rob Volpe","Andre Wright","Walter White","Jesse Pinkman","Saul Goodman","Hank Schrader","Mike Ehrmantraut","Pablo Escobar","Javier Pena","Steve Murphy","Tommy Shelby Jr","John Watson","Sherlock Holmes","James Moriarty","Tony Soprano","Paulie Gualtieri","Silvio Dante","Christopher Moltisanti","Tony Montana","Manny Ribera","Nucky Thompson","Al Capone","Lucky Luciano","Bugsy Siegel","Meyer Lansky","Dutch Schultz","Arnold Rothstein","Frank Costello","Vito Genovese","Carlo Gambino","John Gotti","Sammy Gravano","Whitey Bulger","Ray Donovan","Mickey Donovan","Terry Donovan","Daryl Donovan","Bunchy Donovan","Sully Sullivan","James Donovan","Fitzgerald","Devereaux","Cousin Mickey","Zion"];
+const ROUND_NAMES=["Round of 32","Round of 16","Quarterfinal","Semifinal","FINAL"];
+type Piece=0|1|2|11|22;
+const DIRS=[{r:-1,c:-1},{r:-1,c:1},{r:1,c:-1},{r:1,c:1}];
+function newBoard():Piece[][]{const b:Piece[][]=Array(10).fill(0).map(()=>Array(10).fill(0) as Piece[]);for(let r=0;r<4;r++)for(let c=0;c<10;c++)if((r+c)%2===1)b[r][c]=1;for(let r=6;r<10;r++)for(let c=0;c<10;c++)if((r+c)%2===1)b[r][c]=2;return b;}
+function inside(r:number,c:number){return r>=0&&r<10&&c>=0&&c<10;}
+function isOpp(p:Piece,t:Piece){if(t===0)return false;return (p===1||p===11)!==(t===1||t===11);}
+function clone(b:Piece[][]){return b.map(r=>[...r]);}
+function findCaps(board:Piece[][],r:number,c:number,piece:Piece,vis:Set<string>):any[]{
+  const res:any[]=[];const isKing=piece===11||piece===22;
+  if(!isKing){for(let d of DIRS){const mr=r+d.r,mc=c+d.c,lr=r+d.r*2,lc=c+d.c*2;if(!inside(lr,lc)||!inside(mr,mc))continue;if(!isOpp(piece,board[mr][mc]))continue;if(board[lr][lc]!==0)continue;const key=`${mr},${mc}`;if(vis.has(key))continue;const nb=clone(board);nb[mr][mc]=0;nb[r][c]=0;nb[lr][lc]=piece;if(lr===9&&piece===1)nb[lr][lc]=11;if(lr===0&&piece===2)nb[lr][lc]=22;const nV=new Set(vis);nV.add(key);const fur=findCaps(nb,lr,lc,nb[lr][lc],nV);if(fur.length){fur.forEach((f:any)=>res.push({path:[{r,c},...f.path],caps:[{r:mr,c:mc},...f.caps],finalBoard:f.finalBoard}));}else{res.push({path:[{r,c},{r:lr,c:lc}],caps:[{r:mr,c:mc}],finalBoard:nb});}}}
+  else{for(let d of DIRS){let rr=r+d.r,cc=c+d.c;while(inside(rr,cc)&&board[rr][cc]===0){rr+=d.r;cc+=d.c;}if(!inside(rr,cc))continue;if(!isOpp(piece,board[rr][cc]))continue;const key=`${rr},${cc}`;if(vis.has(key))continue;let lr=rr+d.r,lc=cc+d.c;while(inside(lr,lc)&&board[lr][lc]===0){const nb=clone(board);nb[rr][cc]=0;nb[r][c]=0;nb[lr][lc]=piece;const nV=new Set(vis);nV.add(key);const fur=findCaps(nb,lr,lc,piece,nV);if(fur.length){fur.forEach((f:any)=>res.push({path:[{r,c},{r:lr,c:lc},...f.path.slice(1)],caps:[{r:rr,c:cc},...f.caps],finalBoard:f.finalBoard}));}else{res.push({path:[{r,c},{r:lr,c:lc}],caps:[{r:rr,c:cc}],finalBoard:nb});}lr+=d.r;lc+=d.c;}}}
+  return res;
 }
-function playSound(type:"move"|"capture"|"king"|"win"){
-  try{
-    const ctx = new (window.AudioContext||(window as any).webkitAudioContext)();
-    const o = ctx.createOscillator(); const g=ctx.createGain();
-    o.connect(g); g.connect(ctx.destination);
-    if(type==="move"){ o.frequency.value=300; g.gain.setValueAtTime(0.18, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime+0.3); o.start(); o.stop(ctx.currentTime+0.3); }
-    if(type==="capture"){ o.frequency.value=600; g.gain.setValueAtTime(0.25, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime+0.4); o.start(); o.stop(ctx.currentTime+0.4); }
-    if(type==="king"){ o.frequency.value=880; g.gain.setValueAtTime(0.25, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime+0.6); o.start(); o.stop(ctx.currentTime+0.6); }
-    if(type==="win"){ o.frequency.value=523; const o2=ctx.createOscillator(); o2.connect(g); o2.frequency.value=659; g.gain.setValueAtTime(0.25, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime+1); o.start(); o2.start(); o.stop(ctx.currentTime+1); o2.stop(ctx.currentTime+1); }
-  }catch{}
+function getMoves(board:Piece[][],turn:1|2){let allCaps:any[]=[];for(let r=0;r<10;r++)for(let c=0;c<10;c++){const p=board[r][c];if(!p)continue;if((turn===1)!==(p===1||p===11))continue;const caps=findCaps(board,r,c,p,new Set());caps.forEach(x=>allCaps.push({...x}));}if(allCaps.length){const max=Math.max(...allCaps.map((x:any)=>x.caps.length));return{caps:allCaps.filter((x:any)=>x.caps.length===max),moves:[]};}const moves:any[]=[];for(let r=0;r<10;r++)for(let c=0;c<10;c++){const p=board[r][c];if(!p)continue;if((turn===1)!==(p===1||p===11))continue;const isKing=p===11||p===22;if(!isKing){const dirs=p===1?[{r:1,c:-1},{r:1,c:1}]:[{r:-1,c:-1},{r:-1,c:1}];dirs.forEach(d=>{const nr=r+d.r,nc=c+d.c;if(inside(nr,nc)&&board[nr][nc]===0){const nb=clone(board);nb[r][c]=0;nb[nr][nc]=p;if(nr===9&&p===1)nb[nr][nc]=11;if(nr===0&&p===2)nb[nr][nc]=22;moves.push({board:nb});}});}else{DIRS.forEach(d=>{let nr=r+d.r,nc=c+d.c;while(inside(nr,nc)&&board[nr][nc]===0){const nb=clone(board);nb[r][c]=0;nb[nr][nc]=p;moves.push({board:nb});nr+=d.r;nc+=d.c;}});}}return{caps:[],moves};}
+function mulberry32(a:number){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}}
+function shuffleFisher(arr:string[], rng:any){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function simulateOne(s:any,RNG:any){
+  if(s.finalCelebration){ const elapsed=Math.floor((Date.now()-s.finalTime)/1000); if(elapsed>=300){ const sh2=shuffleFisher(ALL_96,RNG); return {bracket:sh2.slice(0,32),p1:sh2[0],p2:sh2[1],board:newBoard(),turn:RNG()>0.5?1:2,roundIdx:0,matchInRound:0,roundWinners:[],chain:null,finalCelebration:false, lastWinner:null, nextRoundLabel:null}; } return s; }
+  if(s.chain){const cur=s.chain;if(!cur||cur.step>=cur.path.length-1){return{...s,board:cur.finalBoard,chain:null,turn:s.turn===1?2:1};}const nb=clone(s.board);const from=cur.path[cur.step];const to=cur.path[cur.step+1];const cap=cur.caps[cur.step];const piece=nb[from.r][from.c];nb[from.r][from.c]=0;if(cap)nb[cap.r][cap.c]=0;nb[to.r][to.c]=piece;if(to.r===9&&piece===1)nb[to.r][to.c]=11;if(to.r===0&&piece===2)nb[to.r][to.c]=22;return{...s,board:nb,chain:{...cur,step:cur.step+1}};}
+  const {caps,moves}=getMoves(s.board,s.turn);let next:any={...s, lastWinner:null, nextRoundLabel:null};
+  if(caps.length===0&&moves.length===0){
+    const winner=s.turn===1?s.p2:s.p1; next.lastWinner=winner;
+    const newWinners=[...s.roundWinners,winner];
+    if(newWinners.length>=s.bracket.length/2){
+      if(s.roundIdx===4 && newWinners.length===1){ return {...s, bracket:[], p1:winner, p2:"", board:newBoard(), roundIdx:4, matchInRound:0, roundWinners:[winner], lastWinner:winner, nextRoundLabel:"TOURNAMENT CHAMPION", finalCelebration:true, finalWinner:winner, finalTime:Date.now()}; }
+      else{ const proceedingTo = ROUND_NAMES[s.roundIdx+1] || "FINAL"; next.bracket=[...newWinners]; next.roundIdx=s.roundIdx+1; next.matchInRound=0; next.roundWinners=[]; next.p1=next.bracket[0]; next.p2=next.bracket[1]; next.board=newBoard(); next.turn=(RNG()>0.5?1:2) as 1|2; next.nextRoundLabel=proceedingTo; return next; }
+    }else{ const proceedingTo = ROUND_NAMES[s.roundIdx+1] || "FINAL"; next.matchInRound=s.matchInRound+1; next.roundWinners=newWinners; next.p1=s.bracket[next.matchInRound*2]; next.p2=s.bracket[next.matchInRound*2+1]; next.board=newBoard(); next.turn=(RNG()>0.5?1:2) as 1|2; next.nextRoundLabel=proceedingTo; }
+  }
+  else if(caps.length){const best=caps[Math.floor(RNG()*caps.length)];if(best.path.length>2){const from=best.path[0];const firstTo=best.path[1];const cap=best.caps[0];const nb=clone(s.board);const piece=nb[from.r][from.c];nb[from.r][from.c]=0;nb[cap.r][cap.c]=0;nb[firstTo.r][firstTo.c]=piece;if(firstTo.r===9&&piece===1)nb[firstTo.r][firstTo.c]=11;if(firstTo.r===0&&piece===2)nb[firstTo.r][firstTo.c]=22;next.board=nb;next.chain={path:best.path,caps:best.caps,finalBoard:best.finalBoard,step:1};}else{next.board=best.finalBoard;next.turn=s.turn===1?2:1;}}
+  else{const chosen=moves[Math.floor(RNG()*moves.length)];if(chosen){next.board=chosen.board;next.turn=s.turn===1?2:1;}}
+  return next;
 }
 
-function WatchContent(){
-  const sp = useSearchParams();
-  const t = (sp.get("t")||"bronze").toLowerCase();
-  const bronze = BOT_NAMES_96.slice(0,32);
-  const silver = BOT_NAMES_96.slice(32,64);
-  const gold = BOT_NAMES_96.slice(64,96);
-  const initialPlayers = t==="silver"? silver : t==="gold"? gold : bronze;
-  const config = t==="silver"? {name:"SILVER", prize:1000, entry:100, color:"#9ca3af"} : t==="gold"? {name:"GOLD", prize:2500, entry:200, color:"#facc15"} : {name:"BRONZE", prize:500, entry:50, color:"#cd7f32"};
+export default function Watch(){
+  const canvasRef=useRef<HTMLCanvasElement>(null);
+  const [info,setInfo]=useState<any>(null);
+  const stateRef=useRef<any>(null);
+  const rngRef=useRef<any>(null);
+  const audioRef=useRef<AudioContext|null>(null);
+  const lastWinnerRef=useRef<string>("");
 
-  // Tournament state
-  const [roundSize, setRoundSize] = useState(32);
-  const [currentPlayers, setCurrentPlayers] = useState<string[]>(initialPlayers);
-  const [winnersToNext, setWinnersToNext] = useState<string[]>([]);
-  const [matchIdx, setMatchIdx] = useState(0);
-  const [p1Name, setP1Name] = useState(initialPlayers[0]);
-  const [p2Name, setP2Name] = useState(initialPlayers[1]);
-  const [board, setBoard] = useState<Piece[]>([]);
-  const [turn, setTurn] = useState<1|2>(1); //1 black,2 white
-  const [isThinking, setIsThinking] = useState(false);
-  const [countdown, setCountdown] = useState<number|null>(null);
-  const [tournamentOver, setTournamentOver] = useState(false);
-  const [champion, setChampion] = useState("");
-  const matchRef = useRef(0);
-
-  // init board 10x10 international
-  const initBoard = ():Piece[]=>{
-    const b:Piece[] = Array(100).fill(0);
-    for(let i=0;i<100;i++){
-      const r=Math.floor(i/10); const c=i%10;
-      if((r+c)%2===1){
-        if(r<4) b[i]=1;
-        if(r>5) b[i]=2;
-      }
-    }
-    return b;
-  };
-
-  // International capture logic (simplified but includes backward capture + flying king + multi)
-  const dirs = [[-1,-1],[-1,1],[1,-1],[1,1]];
-  const inside = (r:number,c:number)=> r>=0&&r<10&&c>=0&&c<10;
-
-  const getCaptures = (b:Piece[], idx:number):{to:number,captured:number[], path:number[]}[]=>{
-    const piece=b[idx]; if(piece===0) return [];
-    const isBlack = piece===1||piece===3; const isKing = piece===3||piece===4;
-    const r=Math.floor(idx/10), c=idx%10;
-    const res:any[]=[];
-    if(!isKing){
-      // man can capture backward in international
-      for(const [dr,dc] of dirs){
-        const r1=r+dr,c1=c+dc,r2=r+2*dr,c2=c+2*dc;
-        if(!inside(r2,c2)) continue;
-        const i1=r1*10+c1,i2=r2*10+c2;
-        const target=b[i1];
-        if(target!==0 && ((isBlack && (target===2||target===4)) || (!isBlack && (target===1||target===3))) && b[i2]===0){
-          res.push({to:i2,captured:[i1], path:[idx,i2]});
-        }
-      }
-    }else{
-      // flying king
-      for(const [dr,dc] of dirs){
-        let rr=r+dr,cc=c+dc, found=-1;
-        while(inside(rr,cc)){
-          const ii=rr*10+cc;
-          if(b[ii]!==0){
-            if(found===-1 && ((isBlack && (b[ii]===2||b[ii]===4)) || (!isBlack && (b[ii]===1||b[ii]===3)))){
-              found=ii;
-            }else break;
-          }else{
-            if(found!==-1){
-              res.push({to:ii,captured:[found], path:[idx,ii]});
-            }
-          }
-          rr+=dr; cc+=dc;
-        }
-      }
-    }
-    return res;
-  };
-
-  const findBestMove = (b:Piece[], player:1|2):{from:number,to:number,captured:number[]}|null=>{
-    const own = player===1?[1,3]:[2,4];
-    let allCaps:any[]=[];
-    for(let i=0;i<100;i++) if(own.includes(b[i])) {
-      const caps=getCaptures(b,i);
-      caps.forEach(c=> allCaps.push({from:i,...c}));
-    }
-    if(allCaps.length>0){
-      // mandatory max capture - pick longest
-      allCaps.sort((a,b)=> b.captured.length - a.captured.length);
-      return allCaps[0];
-    }
-    // normal moves
-    const moves:any[]=[];
-    for(let i=0;i<100;i++) if(own.includes(b[i])){
-      const isKing=b[i]===3||b[i]===4;
-      const r=Math.floor(i/10),c=i%10;
-      const moveDirs = isKing? dirs : (player===1? [[1,-1],[1,1]] : [[-1,-1],[-1,1]]);
-      if(isKing){
-        for(const [dr,dc] of dirs){
-          let rr=r+dr,cc=c+dc;
-          while(inside(rr,cc)){
-            const ii=rr*10+cc;
-            if(b[ii]===0) moves.push({from:i,to:ii,captured:[]});
-            else break;
-            rr+=dr; cc+=dc;
-          }
-        }
-      }else{
-        for(const [dr,dc] of moveDirs){
-          const rr=r+dr,cc=c+dc;
-          if(inside(rr,cc) && b[rr*10+cc]===0) moves.push({from:i,to:rr*10+cc,captured:[]});
-        }
-      }
-    }
-    if(moves.length===0) return null;
-    return moves[Math.floor(Math.random()*moves.length)];
-  };
-
-  // start new match
-  const startMatch = (p1:string,p2:string)=>{
-    setP1Name(p1); setP2Name(p2);
-    setBoard(initBoard()); setTurn(1); setIsThinking(false);
-  };
-
-  // init tournament
   useEffect(()=>{
-    setCurrentPlayers(initialPlayers);
-    setRoundSize(32);
-    setWinnersToNext([]);
-    setMatchIdx(0);
-    setTournamentOver(false);
-    setCountdown(null);
-    setChampion("");
-    startMatch(initialPlayers[0], initialPlayers[1]);
-  },[t]);
+    const RNG=mulberry32(123456); rngRef.current=RNG;
+    const SAVE_KEY="tourney_continuous_v5";
+    const nowTicks=Math.floor(Date.now()/4000);
 
-  // game loop: 4 sec wait before move, 1 sec for multi-capture
-  useEffect(()=>{
-    if(tournamentOver || board.length===0) return;
-    if(isThinking) return;
-    setIsThinking(true);
-    const timer = setTimeout(()=>{
-      const move = findBestMove(board, turn);
-      if(!move){
-        // no moves = opponent wins
-        const winner = turn===1? p2Name : p1Name;
-        const loser = turn===1? p1Name : p2Name;
-        playSound("win");
-        const nextRoundName = ROUND_NAMES[roundSize/2] || "Next Round";
-        const msg = `${winner} wins against ${loser}, proceeds to ${nextRoundName}`;
-        speak(msg);
-        // add to winners list
-        setWinnersToNext(prev=>[...prev, winner]);
-        // check round end
-        const nextIdx = matchIdx+1;
-        const matchesInRound = roundSize/2;
-        if(nextIdx >= matchesInRound){
-          // round finished
-          setTimeout(()=>{
-            const newPlayers = [...winnersToNext, winner];
-            if(newPlayers.length===1){
-              setChampion(newPlayers[0]);
-              setTournamentOver(true);
-              setCountdown(300); // 5 min = 300 sec
-              speak(`${newPlayers[0]} is the champion of ${config.name} tournament, winning ${config.prize} naira`);
-              playSound("win");
-            }else{
-              // next round
-              setCurrentPlayers(newPlayers);
-              setRoundSize(newPlayers.length);
-              setWinnersToNext([]);
-              setMatchIdx(0);
-              startMatch(newPlayers[0], newPlayers[1]);
-              speak(`Round of ${newPlayers.length} complete. Starting ${ROUND_NAMES[newPlayers.length] || ""}`);
-            }
-          }, 2000);
-        }else{
-          setMatchIdx(nextIdx);
-          setTimeout(()=> startMatch(currentPlayers[nextIdx*2], currentPlayers[nextIdx*2+1]), 1500);
-        }
-        setIsThinking(false);
-        return;
+    // LOAD SAVED + FAST-FORWARD MISSED TIME (fixes your 2-hour bug)
+    let st:any=null;
+    try{
+      const saved=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
+      if(saved && saved.ticks){
+        st=saved.state;
+        const missed=Math.max(0, nowTicks - saved.ticks);
+        // Fast-forward instantly - up to 5000 moves in <1 sec
+        const toSim=Math.min(missed, 8000);
+        for(let i=0;i<toSim;i++){ st=simulateOne(st,RNG); }
       }
+    }catch{}
 
-      // do move
-      const nb = [...board] as Piece[];
-      const movingPiece = nb[move.from];
-      nb[move.from]=0;
-      // capture remove
-      move.captured.forEach((ci:number)=> nb[ci]=0);
-      // king promotion
-      const toR = Math.floor(move.to/10);
-      let newPiece = movingPiece;
-      if(movingPiece===1 && toR===9) newPiece=3;
-      if(movingPiece===2 && toR===0) newPiece=4;
-      if(newPiece!==movingPiece) playSound("king"); else if(move.captured.length>0) playSound("capture"); else playSound("move");
-      nb[move.to]=newPiece;
-      setBoard(nb);
+    if(!st){
+      const sh=shuffleFisher(ALL_96,RNG);
+      st={bracket:sh.slice(0,32),p1:sh[0],p2:sh[1],board:newBoard(),turn:RNG()>0.5?1:2,roundIdx:0,matchInRound:0,roundWinners:[],chain:null,finalCelebration:false};
+      // Global sync for first ever load - 5.5 hours cycle, not 40 min
+      const globalMove = nowTicks % 5000;
+      for(let i=0;i<globalMove;i++) st=simulateOne(st,RNG);
+    }
+    stateRef.current=st;
 
-      // check multi-capture: if capture and can capture again from new pos, continue after 1 sec
-      if(move.captured.length>0){
-        const moreCaps = getCaptures(nb, move.to);
-        if(moreCaps.length>0){
-          setTimeout(()=>{
-            setBoard(prev=>{
-              const b2=[...prev];
-              // continue will be handled in next loop after 1 sec
-              return b2;
-            });
-            setIsThinking(false);
-          }, 1000); // 1 sec for multiple capture
-          return;
-        }
-      }
+    const speak=(text:string)=>{ try{ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); u.volume=1.0; u.rate=0.82; u.pitch=1.1; speechSynthesis.speak(u);}catch{} };
+    const play=(type:'move'|'capture'|'win')=>{
+      try{
+        if(!audioRef.current) audioRef.current=new (window.AudioContext||(window as any).webkitAudioContext)();
+        const ctx=audioRef.current; ctx.resume();
+        const o=ctx.createOscillator(); const g=ctx.createGain(); o.connect(g); g.connect(ctx.destination);
+        const now=ctx.currentTime;
+        if(type==='move'){o.frequency.value=600; o.type='sine'; g.gain.setValueAtTime(0.8, now); g.gain.exponentialRampToValueAtTime(0.001, now+0.8); o.start(now); o.stop(now+0.8);}
+        else if(type==='capture'){o.frequency.value=180; o.type='triangle'; g.gain.setValueAtTime(1.0, now); o.frequency.exponentialRampToValueAtTime(1000, now+0.5); g.gain.exponentialRampToValueAtTime(0.001, now+1.0); o.start(now); o.stop(now+1.0);}
+        else if(type==='win'){o.frequency.value=300; g.gain.setValueAtTime(1.0, now); o.frequency.linearRampToValueAtTime(800, now+0.8); g.gain.exponentialRampToValueAtTime(0.001, now+1.5); o.start(now); o.stop(now+1.5);}
+      }catch{}
+    };
+    const draw=(board:Piece[][])=>{
+      const c=canvasRef.current; if(!c) return; const ctx=c.getContext("2d"); if(!ctx) return;
+      const rect=c.getBoundingClientRect(); const dpr=window.devicePixelRatio||1;
+      c.width=rect.width*dpr; c.height=rect.width*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+      const size=rect.width; const sq=size/10; ctx.clearRect(0,0,size,size);
+      for(let r=0;r<10;r++)for(let cc=0;cc<10;cc++){ctx.fillStyle=(r+cc)%2===0?"#f0d9b5":"#b58863";ctx.fillRect(cc*sq,r*sq,sq,sq);}
+      for(let r=0;r<10;r++)for(let cc=0;cc<10;cc++){const p=board[r][cc]; if(!p) continue; const x=cc*sq+sq/2,y=r*sq+sq/2; ctx.beginPath(); ctx.arc(x,y,sq*0.38,0,Math.PI*2); ctx.fillStyle=(p===1||p===11)?"#111":"#c1272d"; ctx.fill(); ctx.lineWidth=(p===11||p===22)?3:1; ctx.strokeStyle=(p===11||p===22)?"gold":"#000"; ctx.stroke();}
+    };
+    const tick=()=>{
+      draw(stateRef.current.board); setInfo({...stateRef.current});
+      const s=stateRef.current;
+      if(s.lastWinner && s.lastWinner!==lastWinnerRef.current){
+        lastWinnerRef.current=s.lastWinner;
+        if(s.finalCelebration){ play('win'); speak(`Tournament champion! ${s.finalWinner}!`); }
+        else{ play('win'); const to = s.nextRoundLabel || ROUND_NAMES[s.roundIdx+1] || "FINAL"; speak(`${s.lastWinner} wins! Proceeds to ${to}`); }
+      } else { if(s.chain) play('capture'); else play('move'); }
+      try{ localStorage.setItem(SAVE_KEY, JSON.stringify({state:stateRef.current, ticks:Math.floor(Date.now()/4000)})); }catch{}
+    };
+    tick();
+    const iv=setInterval(()=>{ stateRef.current=simulateOne(stateRef.current,rngRef.current); tick(); },4000);
+    const enableAudio=()=>{ try{ if(!audioRef.current) audioRef.current=new (window.AudioContext||(window as any).webkitAudioContext)(); audioRef.current.resume(); }catch{} };
+    document.addEventListener('click',enableAudio); document.addEventListener('touchstart',enableAudio);
+    return()=>{clearInterval(iv); document.removeEventListener('click',enableAudio); document.removeEventListener('touchstart',enableAudio);};
+  },[]);
 
-      setTurn(turn===1?2:1);
-      setIsThinking(false);
-    }, 4000); // 4 sec wait before move
-    return ()=> clearTimeout(timer);
-  },[board, turn, isThinking, tournamentOver]);
-
-  // 5 min countdown timer after tournament ends
-  useEffect(()=>{
-    if(countdown===null) return;
-    if(countdown<=0){ setCountdown(null); setTournamentOver(false); setCurrentPlayers(initialPlayers); setRoundSize(32); setWinnersToNext([]); setMatchIdx(0); startMatch(initialPlayers[0], initialPlayers[1]); return; }
-    const iv=setInterval(()=> setCountdown(c=> c!==null? c-1 : null),1000);
-    return ()=> clearInterval(iv);
-  },[countdown]);
-
-  return (
-    <div style={{background:"#0a0a0a", minHeight:"100vh", color:"#fff", padding:10}}>
-      <div style={{maxWidth:560, margin:"0 auto"}}>
-        <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
-          <a href="/" style={{color:"#fff", textDecoration:"none", fontSize:12}}>← Home</a>
-          <div style={{fontSize:11, fontWeight:900, border:`2px solid ${config.color}`, padding:"4px 10px", borderRadius:20}}>{config.name} • {ROUND_NAMES[roundSize]} • ₦{config.prize}</div>
-          <a href="/boardroom" style={{background:"#fff", color:"#000", padding:"6px 12px", borderRadius:20, fontSize:11, fontWeight:800, textDecoration:"none"}}>Boardroom</a>
+  if(!info) return <div style={{background:"#000",color:"#fff",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>Loading continuous tournament...</div>;
+  if(info.finalCelebration){
+    const elapsed=Math.floor((Date.now()-info.finalTime)/1000); const remaining=Math.max(0,300-elapsed); const m=Math.floor(remaining/60); const s=remaining%60;
+    return <div style={{background:"#000",color:"#fff",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20,textAlign:"center"}}>
+      <div style={{color:"#ff3b3b"}}>◎ TOURNAMENT FINISHED</div>
+      <h1 style={{fontSize:42,margin:"20px 0"}}>🏆 {info.finalWinner} 🏆</h1>
+      <div>CHAMPION — New in {m}:{s.toString().padStart(2,'0')}</div>
+      <canvas ref={canvasRef} style={{width:300,height:300,borderRadius:16,opacity:0.2,marginTop:20}} />
+      <div style={{marginTop:20,fontSize:11,opacity:0.5}}>24/7 continuous — even when you close the tab</div>
+    </div>;
+  }
+  const currentRound = ROUND_NAMES[info.roundIdx] || "FINAL";
+  const nextRound = info.nextRoundLabel || ROUND_NAMES[info.roundIdx+1] || "FINAL";
+  const blackPlayer = info.p1; const redPlayer = info.p2; const turnName = info.turn===1? blackPlayer : redPlayer;
+  return <div style={{background:"#000",color:"#fff",minHeight:"100vh",padding:10,display:"flex",flexDirection:"column",alignItems:"center"}}>
+    <div style={{width:"100%",maxWidth:560}}>
+      <div style={{color:"#ff3b3b",fontSize:12,fontWeight:700}}>◎ LIVE 24/7 CONTINUOUS · {currentRound} · Tap once for 🔊 fade sound</div>
+      <h2 style={{margin:"8px 0 4px",fontSize:16}}>{blackPlayer} <span style={{background:"#111",color:"#fff",padding:"2px 6px",borderRadius:4,fontSize:10}}>BLACK</span> vs {redPlayer} <span style={{background:"#c1272d",color:"#fff",padding:"2px 6px",borderRadius:4,fontSize:10}}>RED</span></h2>
+      <div style={{fontSize:11,opacity:0.7,marginBottom:6}}>Turn: {turnName} — {info.turn===1?'Black pieces':'Red pieces'} · Continuous even when closed</div>
+      <canvas ref={canvasRef} style={{width:"100%",aspectRatio:"1/1",background:"#3d2814",borderRadius:16,border:"4px solid #5a3e2b",display:"block"}} />
+      <div style={{marginTop:12,background:"#111",border:"1px solid #222",borderRadius:10,padding:10}}>
+        <div style={{fontSize:12,fontWeight:700,color:"#ffcc00"}}>➤ {currentRound} → Winners to {nextRound} (wipes after round)</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:6}}>
+          {info.roundWinners.length===0? <span style={{fontSize:11,opacity:0.5}}>No winners yet...</span> :
+            info.roundWinners.map((n:string,i:number)=><span key={i} style={{background:"#1f1f1f",border:"1px solid #22c55e",borderRadius:12,padding:"5px 9px",fontSize:11}}>✅ {n} → {nextRound}</span>)}
         </div>
-
-        {tournamentOver? (
-          <div style={{background:"#111", borderRadius:12, padding:16, marginTop:12, textAlign:"center", border:`2px solid ${config.color}`}}>
-            <div style={{fontSize:20, fontWeight:900, color:config.color}}>🏆 CHAMPION: {champion}</div>
-            <div style={{fontSize:13, marginTop:6}}>Wins ₦{config.prize} • Tournament ended</div>
-            <div style={{fontSize:28, fontWeight:900, marginTop:10, fontVariantNumeric:"tabular-nums"}}>{countdown!==null? `${Math.floor(countdown/60)}:${String(countdown%60).padStart(2,"0")}`:""}</div>
-            <div style={{fontSize:11, opacity:0.5, marginTop:4}}>Next tournament starts in 5 minutes</div>
-          </div>
-        ):(
-          <div style={{background:"#111", borderRadius:12, padding:"10px", marginTop:10, borderLeft:`4px solid ${config.color}`}}>
-            <div style={{fontSize:10, opacity:0.5}}>{ROUND_NAMES[roundSize]} • Match {matchIdx+1}/{roundSize/2} • {isThinking?"Thinking 4s...":""}</div>
-            <div style={{fontWeight:900, fontSize:13, marginTop:4, lineHeight:1.3}}>{p1Name} <span style={{color:config.color}}>VS</span> {p2Name}</div>
-            <div style={{fontSize:11, marginTop:2, color: turn===1? "#fff":"#22c55e"}}>{turn===1? p1Name+" (Black) to move": p2Name+" (White) to move"}</div>
-          </div>
-        )}
-
-        {/* Board - fixed size pieces, king does NOT expand */}
-        <div style={{background:"#ffffff", borderRadius:16, padding:8, marginTop:12, boxShadow:"0 8px 24px rgba(0,0,0,0.5)"}}>
-          <div style={{display:"grid", gridTemplateColumns:"repeat(10,1fr)", gap:2, width:"100%"}}>
-            {board.map((cell,i)=>{
-              const r=Math.floor(i/10); const isBlack=(r+i)%2===1;
-              const isKing=cell===3||cell===4;
-              return (
-                <div key={i} style={{aspectRatio:"1", width:"100%", background:isBlack?"#111":"#f7f7f5", borderRadius:3, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", position:"relative"}}>
-                  {cell!==0 && (
-                    <div style={{
-                      width:"68%", height:"68%", borderRadius:"50%",
-                      background: cell===1||cell===3? "radial-gradient(circle at 30% 30%, #444,#000)" : "radial-gradient(circle at 30% 30%, #fff,#ccc)",
-                      border: cell===1||cell===3? "2px solid #222":"2px solid #eee",
-                      boxShadow:"0 1px 3px rgba(0,0,0,0.5)",
-                      display:"flex", alignItems:"center", justifyContent:"center",
-                      fontSize:"9px", fontWeight:900, color: cell===1||cell===3? "#facc15":"#111",
-                      lineHeight:1
-                    }}>
-                      {isKing? "K": ""}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Proceeding list - clears each round */}
-        <div style={{background:"#111", borderRadius:12, padding:10, marginTop:12}}>
-          <div style={{fontSize:11, fontWeight:800, opacity:0.7}}>PROCEEDING TO {ROUND_NAMES[roundSize/2] || "NEXT ROUND"} ({winnersToNext.length}/{roundSize/2}):</div>
-          <div style={{display:"flex", flexWrap:"wrap", gap:6, marginTop:8}}>
-            {winnersToNext.length===0? <div style={{fontSize:11, opacity:0.4}}>No winners yet in this round...</div> : winnersToNext.map((w,i)=><div key={i} style={{background:"#1c1c1c", border:"1px solid #22c55e", padding:"5px 8px", borderRadius:20, fontSize:11}}>✓ {w}</div>)}
-          </div>
-          <div style={{fontSize:10, opacity:0.35, marginTop:8}}>List clears automatically at end of {ROUND_NAMES[roundSize]}</div>
-        </div>
-
-        <div style={{background:"#0f0f0f", borderRadius:12, padding:10, marginTop:10}}>
-          <div style={{fontSize:10, opacity:0.5, fontWeight:800}}>ALL 32 IN {config.name} (never in other tiers):</div>
-          <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:5, marginTop:6, maxHeight:120, overflowY:"auto"}}>
-            {(t==="silver"? silver : t==="gold"? gold : bronze).map((p,i)=><div key={i} style={{fontSize:10, opacity: currentPlayers.includes(p)||winnersToNext.includes(p)?1:0.3}}>{i+1}. {p}</div>)}
-          </div>
-        </div>
-
-        <div style={{textAlign:"center", fontSize:9, opacity:0.3, marginTop:8}}>4s wait before move • 1s multi-capture • Backward + flying king • Vocal announcement • Sounds • King K inside same circle</div>
       </div>
+      {info.lastWinner && <div style={{marginTop:10,background:"#0f2a0f",border:"1px solid #22c55e",borderRadius:8,padding:10,fontSize:13,color:"#22c55e"}}>🔊 {info.lastWinner} wins {currentRound}! Proceeds to {nextRound}</div>}
     </div>
-  );
-}
-
-export default function Page(){
-  return <Suspense fallback={<div style={{background:"#000", color:"#fff", padding:20, textAlign:"center"}}>Loading tournament...</div>}><WatchContent/></Suspense>;
+  </div>;
 }
