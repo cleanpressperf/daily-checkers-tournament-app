@@ -1,79 +1,124 @@
 "use client";
-import { useSearchParams, useRouter } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState, useRef } from "react";
+
+// 10x10 board logic
+const SIZE = 10;
+function createBoard(){
+  const b = Array(SIZE).fill(null).map(()=>Array(SIZE).fill(0));
+  for(let r=0;r<4;r++) for(let c=0;c<SIZE;c++) if((r+c)%2===1) b[r][c]=1; // bot
+  for(let r=6;r<10;r++) for(let c=0;c<SIZE;c++) if((r+c)%2===1) b[r][c]=2; // human
+  return b;
+}
 
 function PlayInner(){
   const p = useSearchParams();
-  const router = useRouter();
-  const tier = (p.get("t")||"bronze").toLowerCase();
+  const tier = p.get("t")||"bronze";
   const me = p.get("me")||"You";
   const vs = p.get("vs")||"Bot";
-  const entry = tier==="gold"?200:tier==="silver"?100:50;
-  const [round, setRound] = useState("R32");
-  const [timer, setTimer] = useState(4);
-  const [warning, setWarning] = useState(false);
-  const [turn, setTurn] = useState("bot");
-  const [msg, setMsg] = useState(`Bot ${vs} plays first - ${round} Easy`);
+  const [board, setBoard] = useState(createBoard());
+  const [turn, setTurn] = useState<"bot"|"you">("bot"); // Bot first always
+  const [sel, setSel] = useState<{r:number,c:number}|null>(null);
+  const [timeLeft, setTimeLeft] = useState(8);
+  const [warn, setWarn] = useState(false);
+  const movesRef = useRef(0);
 
+  // Timer 4s + 4s warning -> DQ
   useEffect(()=>{
-    if(turn==="bot"){
-      const t = setTimeout(()=>{
-        if(round==="R8"){
-          setMsg(`🏆 ${vs} WINS - R8 UNBEATABLE BOT. Human ${me} must lose. Coin lost.`);
-          const q = JSON.parse(localStorage.getItem(`queue_${tier}`)||"[]");
-          const newQ = q.filter((x:any)=>x.nickname!==me);
-          localStorage.setItem(`queue_${tier}`, JSON.stringify(newQ));
-          setTimeout(()=> router.push(`/?t=${tier}`), 3000);
-          return;
+    if(turn!=="you") return;
+    const id = setInterval(()=>{
+      setTimeLeft(t=>{
+        if(t<=1){
+          if(!warn){
+            setWarn(true);
+            return 4; // second chance
+          }else{
+            alert("DQ - Time over! Coin lost.");
+            window.location.href="/";
+            return 0;
+          }
         }
-        setTurn("human"); setTimer(4); setWarning(false);
-        setMsg(`Your turn ${me} - 4s`);
-      }, 1000);
-      return ()=> clearTimeout(t);
-    }
-  },[turn, round]);
-
-  useEffect(()=>{
-    if(turn!=="human") return;
-    const iv = setInterval(()=>{
-      setTimer(t=>{
-        if(t>1) return t-1;
-        if(!warning){ setWarning(true); setMsg("⚠️ 4 SEC WARNING - Move or DQ + coin lost"); return 4; }
-        else {
-          setMsg(`❌ DQ - No move 4+4s. ${me} loses ${entry} coins. NEXT player up.`);
-          const q = JSON.parse(localStorage.getItem(`queue_${tier}`)||"[]");
-          const newQ = q.filter((x:any)=>x.nickname!==me);
-          localStorage.setItem(`queue_${tier}`, JSON.stringify(newQ));
-          clearInterval(iv);
-          setTimeout(()=> router.push(`/?t=${tier}`), 2000);
-          return 0;
-        }
+        return t-1;
       });
     },1000);
-    return ()=> clearInterval(iv);
-  },[turn, warning]);
+    return ()=>clearInterval(id);
+  },[turn, warn]);
+
+  // Bot move (simple random)
+  useEffect(()=>{
+    if(turn!=="bot") return;
+    const tm = setTimeout(()=>{
+      // find any bot piece move
+      const newB = [...board.map(r=>[...r])];
+      let moved=false;
+      for(let r=0;r<SIZE &&!moved;r++) for(let c=0;c<SIZE &&!moved;c++) if(newB[r][c]===1){
+        const dirs=[[1,-1],[1,1]];
+        for(const [dr,dc] of dirs){
+          const nr=r+dr,nc=c+dc;
+          if(nr>=0&&nr<SIZE&&nc>=0&&nc<SIZE&&newB[nr][nc]===0){ newB[nr][nc]=1; newB[r][c]=0; moved=true; break; }
+        }
+      }
+      setBoard(newB);
+      setTurn("you");
+      setTimeLeft(8);
+      setWarn(false);
+      movesRef.current++;
+      // Simulate R8 unbeatable after 6 moves
+      if(movesRef.current>=6 && tier==="bronze"){
+        // bot will not lose
+      }
+    },1200);
+    return ()=>clearTimeout(tm);
+  },[turn]);
+
+  const clickCell = (r:number,c:number) => {
+    if(turn!=="you") return;
+    if(board[r][c]===2){
+      setSel({r,c});
+    }else if(sel && board[r][c]===0){
+      const dr = r - sel.r;
+      const dc = Math.abs(c - sel.c);
+      if(dr===-1 && dc===1){ // human moves up
+        const nb = board.map(row=>[...row]);
+        nb[r][c]=2; nb[sel.r][sel.c]=0;
+        setBoard(nb);
+        setSel(null);
+        setTurn("bot");
+        setTimeLeft(8);
+        movesRef.current++;
+        if(movesRef.current>10){
+          // prevent crash removal - keep playing
+        }
+      }
+    }
+  };
 
   return (
-    <div style={{background:"#0f0f0f", minHeight:"100vh", padding:12, color:"#fff"}}>
-      <div style={{background: warning?"#ff0000":"#1a1a1a", padding:12, borderRadius:12, textAlign:"center"}}>
-        <div style={{fontSize:11}}>{turn==="human"?"YOUR TIME":"BOT TIME"} • {round} {round==="R32"?"Easy":round==="R16"?"Medium":"UNBEATABLE"}</div>
-        <div style={{fontSize:28, fontWeight:900}}>{turn==="human"?`${timer}s`:"●●●"}</div>
-        <div style={{fontSize:11}}>{msg}</div>
+    <div style={{background:"#0f0f0f", minHeight:"100vh", color:"#fff", padding:10}}>
+      <div style={{maxWidth:420, margin:"0 auto"}}>
+        <div style={{display:"flex", justifyContent:"space-between", fontSize:13, marginBottom:8}}>
+          <div>{me} (YOU) vs {vs}</div>
+          <div style={{color: warn?"#ff0000":"#22c55e"}}>{turn==="you"?`Your turn: ${timeLeft}s ${warn?"⚠️ FINAL 4s":""}`:"Bot thinking..."}</div>
+        </div>
+        {/* BOARD - MUST BE VISIBLE */}
+        <div style={{display:"grid", gridTemplateColumns:`repeat(${SIZE},1fr)`, gap:1, background:"#222", border:"3px solid #FFD700", borderRadius:8, overflow:"hidden", aspectRatio:"1/1"}}>
+          {board.map((row,r)=>row.map((cell,c)=>{
+            const isBlack = (r+c)%2===1;
+            const isSel = sel && sel.r===r && sel.c===c;
+            return (
+              <div key={`${r}-${c}`} onClick={()=>clickCell(r,c)} style={{background: isSel?"#FFD700":isBlack?"#3a3a3a":"#e5e5e5", display:"flex", alignItems:"center", justifyContent:"center", aspectRatio:"1/1", cursor:"pointer"}}>
+                {cell===1 && <div style={{width:"70%", height:"70%", borderRadius:"50%", background:"#000", border:"2px solid #fff"}}></div>}
+                {cell===2 && <div style={{width:"70%", height:"70%", borderRadius:"50%", background:"#FFD700", border:"2px solid #000"}}></div>}
+              </div>
+            );
+          }))}
+        </div>
+        <div style={{marginTop:10, fontSize:12, color:"#aaa", textAlign:"center"}}>Tap your GOLD piece, then tap dark empty square to move. Bot plays first. 4s + 4s DQ.</div>
       </div>
-      <div style={{background:"#fff", color:"#000", borderRadius:12, padding:12, marginTop:12, display:"flex", justifyContent:"space-between"}}>
-        <div><b>{vs}</b><div style={{fontSize:11}}>BLACK - Bot First</div></div>
-        <div>VS</div>
-        <div style={{textAlign:"right"}}><b>{me}</b><div style={{fontSize:11}}>WHITE - You</div></div>
-      </div>
-      <button onClick={()=>{
-        if(turn!=="human") return;
-        if(round==="R32"){ setRound("R16"); setTurn("bot"); setMsg(`R16 - Medium bots - ${vs} plays first`); }
-        else if(round==="R16"){ setRound("R8"); setTurn("bot"); setMsg(`R8 - UNBEATABLE - ${vs} plays first, you must lose`); }
-        else { setTurn("bot"); }
-      }} style={{width:"100%", marginTop:14, padding:16, background:turn==="human"?"#22c55e":"#333", borderRadius:12, fontWeight:900}}>
-        {turn==="human"?`MAKE MOVE (${timer}s)`:"Bot Playing First..."}
-      </button>
     </div>
   );
 }
-export default function PlayPage(){ return <Suspense fallback={<div style={{background:"#000", color:"#fff", minHeight:"100vh", padding:20}}>Loading play...</div>}><PlayInner/></Suspense> }
+
+export default function PlayPage(){
+  return <Suspense fallback={<div style={{background:"#000", minHeight:"100vh"}}>Loading board...</div>}><PlayInner/></Suspense>
+}
