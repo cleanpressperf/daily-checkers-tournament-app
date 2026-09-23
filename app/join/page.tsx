@@ -1,101 +1,68 @@
 "use client";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState, Suspense } from "react";
+import { Suspense, useState, useEffect } from "react";
 
-const TIERS: any = {
-  bronze: { name:"BRONZE", entry:50, prize:500, botNames: ["Tunde","Emeka","Chinedu","Musa","Ibrahim","Uche","Obi","Femi","Sola","Dayo","Kunle","Segun","Bayo","Wale","Tope","Lekan","Nnamdi","Chidi","Ojo","Ade","Bola","Tobi","Seyi","Yemi","Kola","Dele","Bimbo","Tayo","Fola","Jide","Akin","Lola"] },
-  silver: { name:"SILVER", entry:100, prize:1000, botNames: ["James","David","John","Mike","Chris","Alex","Daniel","Peter","Paul","Mark","Luke","Matt","Steve","Brian","Kevin","Jason","Ryan","Eric","Adam","Frank","Henry","George","Samuel","Victor","Albert","Philip","Thomas","Joseph","Edward","Charles","Robert","Richard"] },
-  gold: { name:"GOLD", entry:200, prize:2500, botNames: ["Zain","Amir","Khalid","Omar","Ali","Hassan","Yusuf","Ibrahim","Rashid","Farid","Tariq","Nasir","Jamal","Karim","Bilal","Idris","Hamza","Mustafa","Suleiman","Amin","Zubair","Faisal","Nabil","Hakim","Salim","Rafiq","Aziz","Malik","Qasim","Adil","Latif","Anwar"] }
+const BOTS = {
+  bronze: ["Marlo Stanfield","Thomas Shelby","Arthur Shelby","John Shelby","Finn Shelby","Michael Gray","Polly Gray","Ada Shelby","Isaiah Jesus","Jeremiah Jesus","Jimmy McCavern","Aberama Gold","Alfie Solomons","Luca Changretta","Michael Corleone","Vito Corleone","Sonny Corleone","Tom Hagen","Omar Little","Stringer Bell","Avon Barksdale","Jimmy McNulty","Lester Freamon","Franklin Saint","Leon Simmons","Jerome Saint","Teddy McDonald","Manboy","Gustavo Fring","Esme Shelby","Lizzie Stark","Freddie Thorne","Grace Burgess"],
+  silver: ["May Carleton","Billy Kimber","Darby Sabini","Oswald Mosley","Winston Churchill","Johnny Dogs","Curly","Jack Nelson","Bodie Broadus","Slim Charles","Snoop Pearson","Bunk Moreland","Kima Greggs","Connie Corleone","Kay Adams","Apollonia Vitelli","Moe Greene","Hyman Roth","Cissy Saint","Kane Hamilton","Rob Volpe","Andre Wright","Walter White","Jesse Pinkman","Saul Goodman","Hank Schrader","Mike Ehrmantraut","Pablo Escobar","Javier Pena","Steve Murphy","Tommy Shelby Jr","John Watson"],
+  gold: ["Sherlock Holmes","James Moriarty","Tony Soprano","Paulie Gualtieri","Silvio Dante","Christopher Moltisanti","Tony Montana","Manny Ribera","Nucky Thompson","Al Capone","Lucky Luciano","Bugsy Siegel","Meyer Lansky","Dutch Schultz","Arnold Rothstein","Frank Costello","Vito Genovese","Carlo Gambino","John Gotti","Sammy Gravano","Whitey Bulger","Ray Donovan","Mickey Donovan","Terry Donovan","Daryl Donovan","Bunchy Donovan","Sully Sullivan","James Donovan","Fitzgerald","Devereaux","Cousin Mickey","Zion"]
 };
 
 function JoinInner(){
-  const params = useSearchParams();
+  const p = useSearchParams();
   const router = useRouter();
-  const tId = (params.get("t")||"bronze").toLowerCase();
-  const tier = TIERS[tId] || TIERS.bronze;
-
-  const [coins, setCoins] = useState(0);
+  const tier = (p.get("t")||"bronze").toLowerCase() as "bronze"|"silver"|"gold";
+  const entry = tier==="gold"?200:tier==="silver"?100:50;
+  const prize = tier==="gold"?2500:tier==="silver"?1000:500;
   const [nick, setNick] = useState("");
-  const [showNickPopup, setShowNickPopup] = useState(false);
-  const [queuePos, setQueuePos] = useState<number|null>(null);
-  const [statusMsg, setStatusMsg] = useState("");
+  const [coins, setCoins] = useState(0);
+  const [msg, setMsg] = useState("");
 
   useEffect(()=>{
-    const c = parseInt(localStorage.getItem("coins")||"0");
+    const c = parseInt(localStorage.getItem("user_coins")||"0");
     setCoins(c);
-    const savedNick = localStorage.getItem("playerNickname");
-    if(savedNick) setNick(savedNick);
-    const round = localStorage.getItem(`round_${tId}`) || "R32";
-    let queue: any[] = JSON.parse(localStorage.getItem(`queue_${tId}`)||"[]");
-    if(c < tier.entry){
-      router.replace(`/buy?t=${tId}&msg=insufficient&need=${tier.entry}`);
-      return;
-    }
-    if(!savedNick){ setShowNickPopup(true); } else { handleJoin(savedNick, queue, round); }
+    // give starter 100 for testing if zero
+    if(c===0){ localStorage.setItem("user_coins","100"); setCoins(100); }
   },[]);
 
-  const handleJoin = (nickname: string, existingQueue?: any[], currentRound?: string) => {
-    const queueKey = `queue_${tId}`;
-    const round = currentRound || localStorage.getItem(`round_${tId}`) || "R32";
-    let queue: any[] = existingQueue || JSON.parse(localStorage.getItem(queueKey)||"[]");
-    if(queue.length >= 32){
-      const nextKey = `next_queue_${tId}`;
-      let nextQ = JSON.parse(localStorage.getItem(nextKey)||"[]");
-      if(nextQ.length < 32){
-        const newCoins = coins - tier.entry;
-        localStorage.setItem("coins", String(newCoins));
-        nextQ.push({nickname, time:Date.now(), expires:3});
-        localStorage.setItem(nextKey, JSON.stringify(nextQ));
-        setStatusMsg(`Tournament full (32/32). You are Player #${nextQ.length} in NEXT tournament. Visit Watch Live to track. Coin deducted.`);
-        setQueuePos(nextQ.length);
-      } else { setStatusMsg("Both current and next tournament full. Please wait."); }
+  const handleJoin = () => {
+    if(!nick.trim()){ setMsg("Enter nickname"); return; }
+    if(coins < entry){
+      setMsg(`Insufficient coins - you need ${entry} coins for ${tier.toUpperCase()} (you have ${coins}).`);
       return;
     }
-    const newCoins = coins - tier.entry;
-    localStorage.setItem("coins", String(newCoins));
-    setCoins(newCoins);
-    localStorage.setItem("playerNickname", nickname);
-    queue.push({nickname, time:Date.now(), isHuman:true, roundJoined:round});
-    queue.sort((a,b)=>a.time-b.time);
-    localStorage.setItem(queueKey, JSON.stringify(queue));
-    const pos = queue.findIndex((p:any)=>p.nickname===nickname)+1;
-    setQueuePos(pos);
-    if(round === "R32"){
-      const botName = tier.botNames[Math.floor(Math.random()*tier.botNames.length)];
-      setStatusMsg(`You are Player #${pos} of 32. You are NEXT vs ${botName}. Watch Live will auto-start you when current match ends.`);
-      setTimeout(()=> router.push(`/watch?t=${tId}&next=1&me=${nickname}&vs=${botName}&r=R32`), 2000);
-    } else {
-      setStatusMsg(`Coin deducted. Current round is ${round}, not R32. Come back when this tournament ends. You are secured as Player #${pos} for next R32. Visit Watch Live to track. Expires in 3 tournaments.`);
-    }
-  };
-
-  const submitNick = () => {
-    if(!nick.trim() || nick.length < 3){ alert("Enter at least 3 letters"); return; }
-    if(tier.botNames.includes(nick.trim())){ alert("Name already taken, choose another"); return; }
-    setShowNickPopup(false);
-    handleJoin(nick.trim());
+    // deduct
+    const newCoins = coins - entry;
+    localStorage.setItem("user_coins", newCoins.toString());
+    // queue - First Pay First Play
+    const q = JSON.parse(localStorage.getItem(`queue_${tier}`)||"[]");
+    if(q.length>=32){ setMsg("Tournament full 32/32 - watch live, slot opens soon"); return; }
+    q.push({nickname: nick.trim(), time: Date.now(), entry});
+    localStorage.setItem(`queue_${tier}`, JSON.stringify(q));
+    // pick disguised bot name - not "Bot"
+    const botList = BOTS[tier];
+    const vs = botList[Math.floor(Math.random()*botList.length)];
+    // go to play where bot first + 4+4s + R8 unbeatable
+    router.push(`/play?t=${tier}&me=${encodeURIComponent(nick.trim())}&vs=${encodeURIComponent(vs)}`);
   };
 
   return (
-    <div style={{padding:20, background:"#f5f5f5", minHeight:"100vh"}}>
-      <h2 style={{fontWeight:900}}>Join {tier.name} - {tier.entry} coins</h2>
-      <p>Coins: {coins}</p>
-      {queuePos && <div style={{marginTop:12, padding:12, background:"#fff", borderRadius:10, fontWeight:800}}>You are Player #{queuePos} of 32</div>}
-      {statusMsg && <div style={{marginTop:12, padding:14, background:"#000", color:"#fff", borderRadius:12, lineHeight:"18px"}}>{statusMsg}</div>}
-      {showNickPopup && (
-        <div style={{position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.6)", display:"flex", alignItems:"center", justifyContent:"center"}}>
-          <div style={{background:"#fff", padding:20, borderRadius:14, width:"90%", maxWidth:340}}>
-            <div style={{fontWeight:900, fontSize:16}}>Enter Nickname (once)</div>
-            <div style={{fontSize:12, color:"#666", marginTop:4}}>Saved for next time</div>
-            <input value={nick} onChange={e=>setNick(e.target.value)} placeholder="e.g. Chinedu" style={{width:"100%", marginTop:12, padding:12, borderRadius:10, border:"1px solid #ccc"}}/>
-            <button onClick={submitNick} style={{width:"100%", marginTop:10, padding:12, background:"#000", color:"#fff", borderRadius:10, fontWeight:900}}>Confirm & Join</button>
-          </div>
+    <div style={{background:"#0f0f0f", minHeight:"100vh", padding:16, color:"#fff"}}>
+      <div style={{maxWidth:400, margin:"0 auto"}}>
+        <button onClick={()=>router.push("/")} style={{color:"#aaa", marginBottom:12}}>← Back</button>
+        <h1 style={{fontWeight:900, fontSize:22}}>Join {tier.toUpperCase()} <span style={{color:"#FFD700"}}>₦{prize}</span></h1>
+        <div style={{background:"#1a1a1a", borderRadius:12, padding:12, marginTop:12, fontSize:13}}>
+          <div>Entry: {entry} coins ≈ ₦{entry}</div>
+          <div>Prize: ₦{prize}</div>
+          <div>Your coins: {coins}</div>
+          <div style={{fontSize:11, color:"#888", marginTop:6}}>Bot plays first always. 4s + 4s warning → DQ + coin lost. R32 Easy, R16 Medium, R8 UNBEATABLE human must lose. Humans never vs humans while bots exist. First Pay First Play queue.</div>
         </div>
-      )}
+        <input value={nick} onChange={e=>setNick(e.target.value)} placeholder="Your nickname (real name shown)" style={{width:"100%", padding:14, borderRadius:12, marginTop:14, background:"#fff", color:"#000", border:"none"}} />
+        {msg && <div style={{background: msg.includes("Insufficient")?"#ff0000":"#222", padding:10, borderRadius:10, marginTop:10, fontSize:13}}>{msg} {msg.includes("Insufficient") && <a href="/buy" style={{color:"#FFD700", textDecoration:"underline"}}>Buy Coins</a>}</div>}
+        <button onClick={handleJoin} style={{width:"100%", marginTop:12, padding:16, background:"#fff", color:"#000", borderRadius:12, fontWeight:900}}>Join with {entry} coins → Play Now</button>
+        <div style={{marginTop:10, textAlign:"center"}}><a href={`/watch?t=${tier}`} style={{color:"#aaa", fontSize:12}}>👁️ Watch Live instead</a></div>
+      </div>
     </div>
   );
 }
-
-export default function JoinPage(){
-  return <Suspense fallback={<div style={{padding:20}}>Loading...</div>}><JoinInner/></Suspense>
-}
+export default function JoinPage(){ return <Suspense fallback={<div style={{background:"#000", color:"#fff", minHeight:"100vh", padding:20}}>Loading...</div>}><JoinInner/></Suspense> }
