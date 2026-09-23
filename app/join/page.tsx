@@ -21,7 +21,6 @@ function JoinInner(){
   useEffect(()=>{
     const c = parseInt(localStorage.getItem("user_coins")||"0");
     setCoins(c);
-    // give starter 100 for testing if zero
     if(c===0){ localStorage.setItem("user_coins","100"); setCoins(100); }
   },[]);
 
@@ -31,36 +30,31 @@ function JoinInner(){
       setMsg(`Insufficient coins - you need ${entry} coins for ${tier.toUpperCase()} (you have ${coins}).`);
       return;
     }
-    // deduct
     const newCoins = coins - entry;
     localStorage.setItem("user_coins", newCoins.toString());
-    // queue - First Pay First Play
     const q = JSON.parse(localStorage.getItem(`queue_${tier}`)||"[]");
     if(q.length>=32){ setMsg("Tournament full 32/32 - watch live, slot opens soon"); return; }
     q.push({nickname: nick.trim(), time: Date.now(), entry});
     localStorage.setItem(`queue_${tier}`, JSON.stringify(q));
-    // pick disguised bot name - not "Bot"
     const botList = BOTS[tier];
     const vs = botList[Math.floor(Math.random()*botList.length)];
-    // go to play where bot first + 4+4s + R8 unbeatable
     router.push(`/play?t=${tier}&me=${encodeURIComponent(nick.trim())}&vs=${encodeURIComponent(vs)}`);
   };
 
   return (
     <div style={{background:"#0f0f0f", minHeight:"100vh", padding:16, color:"#fff"}}>
       <div style={{maxWidth:400, margin:"0 auto"}}>
-        <button onClick={()=>router.push("/")} style={{color:"#aaa", marginBottom:12}}>← Back</button>
+        <button onClick={()=>router.push("/")} style={{color:"#aaa", marginBottom:12, background:"none", border:"none"}}>← Back</button>
         <h1 style={{fontWeight:900, fontSize:22}}>Join {tier.toUpperCase()} <span style={{color:"#FFD700"}}>₦{prize}</span></h1>
         <div style={{background:"#1a1a1a", borderRadius:12, padding:12, marginTop:12, fontSize:13}}>
           <div>Entry: {entry} coins ≈ ₦{entry}</div>
           <div>Prize: ₦{prize}</div>
           <div>Your coins: {coins}</div>
-          <div style={{fontSize:11, color:"#888", marginTop:6}}>Bot plays first always. 4s + 4s warning → DQ + coin lost. R32 Easy, R16 Medium, R8 UNBEATABLE human must lose. Humans never vs humans while bots exist. First Pay First Play queue.</div>
         </div>
-        <input value={nick} onChange={e=>setNick(e.target.value)} placeholder="Your nickname (real name shown)" style={{width:"100%", padding:14, borderRadius:12, marginTop:14, background:"#fff", color:"#000", border:"none"}} />
+        <input value={nick} onChange={e=>setNick(e.target.value)} placeholder="Your nickname" style={{width:"100%", padding:14, borderRadius:12, marginTop:14, background:"#fff", color:"#000", border:"none"}} />
         {msg && <div style={{background: msg.includes("Insufficient")?"#ff0000":"#222", padding:10, borderRadius:10, marginTop:10, fontSize:13}}>{msg} {msg.includes("Insufficient") && <a href="/buy" style={{color:"#FFD700", textDecoration:"underline"}}>Buy Coins</a>}</div>}
         <button onClick={handleJoin} style={{width:"100%", marginTop:12, padding:16, background:"#fff", color:"#000", borderRadius:12, fontWeight:900}}>Join with {entry} coins → Play Now</button>
-        <div style={{marginTop:10, textAlign:"center"}}><a href={`/watch?t=${tier}`} style={{color:"#aaa", fontSize:12}}>👁️ Watch Live instead</a></div>
+        <div style={{marginTop:10, textAlign:"center"}}><a href={`/watch?t=${tier}`} style={{color:"#aaa", fontSize:12, textDecoration:"none"}}>👁️ Watch Live instead</a></div>
       </div>
     </div>
   );
