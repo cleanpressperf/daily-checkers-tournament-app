@@ -2,12 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 const ALL_96=["Marlo Stanfield","Thomas Shelby","Arthur Shelby","John Shelby","Finn Shelby","Michael Gray","Polly Gray","Ada Shelby","Isaiah Jesus","Jeremiah Jesus","Jimmy McCavern","Aberama Gold","Alfie Solomons","Luca Changretta","Michael Corleone","Vito Corleone","Sonny Corleone","Tom Hagen","Omar Little","Stringer Bell","Avon Barksdale","Jimmy McNulty","Lester Freamon","Franklin Saint","Leon Simmons","Jerome Saint","Teddy McDonald","Manboy","Gustavo Fring","Esme Shelby","Lizzie Stark","Freddie Thorne","Grace Burgess","May Carleton","Billy Kimber","Darby Sabini","Oswald Mosley","Winston Churchill","Johnny Dogs","Curly","Jack Nelson","Bodie Broadus","Slim Charles","Snoop Pearson","Bunk Moreland","Kima Greggs","Connie Corleone","Kay Adams","Apollonia Vitelli","Moe Greene","Hyman Roth","Cissy Saint","Kane Hamilton","Rob Volpe","Andre Wright","Walter White","Jesse Pinkman","Saul Goodman","Hank Schrader","Mike Ehrmantraut","Pablo Escobar","Javier Pena","Steve Murphy","Tommy Shelby Jr","John Watson","Sherlock Holmes","James Moriarty","Tony Soprano","Paulie Gualtieri","Silvio Dante","Christopher Moltisanti","Tony Montana","Manny Ribera","Nucky Thompson","Al Capone","Lucky Luciano","Bugsy Siegel","Meyer Lansky","Dutch Schultz","Arnold Rothstein","Frank Costello","Vito Genovese","Carlo Gambino","John Gotti","Sammy Gravano","Whitey Bulger","Ray Donovan","Mickey Donovan","Terry Donovan","Daryl Donovan","Bunchy Donovan","Sully Sullivan","James Donovan","Fitzgerald","Devereaux","Cousin Mickey","Zion"];
-
-// --- ONLY SPLIT ADDED - NO OTHER CHANGE ---
 const BRONZE_32 = ALL_96.slice(0,32);
 const SILVER_32 = ALL_96.slice(32,64);
 const GOLD_32 = ALL_96.slice(64,96);
-
 const ROUND_NAMES=["Round of 32","Round of 16","Quarterfinal","Semifinal","FINAL"];
 type Piece=0|1|2|11|22;
 const DIRS=[{r:-1,c:-1},{r:-1,c:1},{r:1,c:-1},{r:1,c:1}];
@@ -25,54 +22,36 @@ function getMoves(board:Piece[][],turn:1|2){let allCaps:any[]=[];for(let r=0;r<1
 function mulberry32(a:number){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}}
 function shuffleFisher(arr:string[], rng:any){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function simulateOne(s:any,RNG:any){
-  if(s.finalCelebration){ const elapsed=Math.floor((Date.now()-s.finalTime)/1000); if(elapsed>=300){ const sh2=shuffleFisher(s.tierList,RNG); return {bracket:sh2.slice(0,32),p1:sh2[0],p2:sh2[1],board:newBoard(),turn:1,roundIdx:0,matchInRound:0,roundWinners:[],chain:null,finalCelebration:false, lastWinner:null, nextRoundLabel:null, tierList:s.tierList, tierName:s.tierName}; } return s; }
+  if(s.finalCelebration){ const elapsed=Math.floor((Date.now()-s.finalTime)/1000); if(elapsed>=300){ const sh2=shuffleFisher(s.tierList,RNG); return {bracket:sh2.slice(0,32),p1:sh2[0],p2:sh2[1],board:newBoard(),turn:RNG()>0.5?1:2,roundIdx:0,matchInRound:0,roundWinners:[],chain:null,finalCelebration:false, lastWinner:null, nextRoundLabel:null, tierList:s.tierList, tierName:s.tierName}; } return s; }
   if(s.chain){const cur=s.chain;if(!cur||cur.step>=cur.path.length-1){return{...s,board:cur.finalBoard,chain:null,turn:s.turn===1?2:1};}const nb=clone(s.board);const from=cur.path[cur.step];const to=cur.path[cur.step+1];const cap=cur.caps[cur.step];const piece=nb[from.r][from.c];nb[from.r][from.c]=0;if(cap)nb[cap.r][cap.c]=0;nb[to.r][to.c]=piece;if(to.r===9&&piece===1)nb[to.r][to.c]=11;if(to.r===0&&piece===2)nb[to.r][to.c]=22;return{...s,board:nb,chain:{...cur,step:cur.step+1}};}
   const {caps,moves}=getMoves(s.board,s.turn);let next:any={...s, lastWinner:null, nextRoundLabel:null};
   if(caps.length===0&&moves.length===0){
-    let winner=s.turn===1?s.p2:s.p1;
-    // === ADDED: R8 UNBEATABLE LOGIC - if human in match and R8, human must lose ===
-    if(s.isHumanMatch && s.roundIdx>=2){
-      // Quarterfinal = R8, human always loses to unbeatable bot
-      if(s.humanName && winner===s.humanName){ winner = winner===s.p1? s.p2 : s.p1; }
-    }
-    next.lastWinner=winner;
+    const winner=s.turn===1?s.p2:s.p1; next.lastWinner=winner;
     const newWinners=[...s.roundWinners,winner];
     if(newWinners.length>=s.bracket.length/2){
       if(s.roundIdx===4 && newWinners.length===1){ return {...s, bracket:[], p1:winner, p2:"", board:newBoard(), roundIdx:4, matchInRound:0, roundWinners:[winner], lastWinner:winner, nextRoundLabel:"TOURNAMENT CHAMPION", finalCelebration:true, finalWinner:winner, finalTime:Date.now()}; }
-      else{ const proceedingTo = ROUND_NAMES[s.roundIdx+1] || "FINAL"; next.bracket=[...newWinners]; next.roundIdx=s.roundIdx+1; next.matchInRound=0; next.roundWinners=[]; next.p1=next.bracket[0]; next.p2=next.bracket[1]; next.board=newBoard(); next.turn=1; next.nextRoundLabel=proceedingTo; return next; }
-    }else{ const proceedingTo = ROUND_NAMES[s.roundIdx+1] || "FINAL"; next.matchInRound=s.matchInRound+1; next.roundWinners=newWinners; next.p1=s.bracket[next.matchInRound*2]; next.p2=s.bracket[next.matchInRound*2+1]; next.board=newBoard(); next.turn=1; next.nextRoundLabel=proceedingTo; }
+      else{ const proceedingTo = ROUND_NAMES[s.roundIdx+1] || "FINAL"; next.bracket=[...newWinners]; next.roundIdx=s.roundIdx+1; next.matchInRound=0; next.roundWinners=[]; next.p1=next.bracket[0]; next.p2=next.bracket[1]; next.board=newBoard(); next.turn=(RNG()>0.5?1:2) as 1|2; next.nextRoundLabel=proceedingTo; return next; }
+    }else{ const proceedingTo = ROUND_NAMES[s.roundIdx+1] || "FINAL"; next.matchInRound=s.matchInRound+1; next.roundWinners=newWinners; next.p1=s.bracket[next.matchInRound*2]; next.p2=s.bracket[next.matchInRound*2+1]; next.board=newBoard(); next.turn=(RNG()>0.5?1:2) as 1|2; next.nextRoundLabel=proceedingTo; }
   }
-  else if(caps.length){const best=caps[Math.floor(RNG()*caps.length)];if(best.path.length>2){const from=best.path[0];const firstTo=best.path[1];const cap=best.caps[0];const nb=clone(s.board);const piece=nb[from.r][from.c];nb[from.r][from.c]=0;nb[cap.r][cap.c]=0;nb[firstTo.r][firstTo.c]=piece;if(firstTo.r===9&&piece===1)nb[firstTo.r][to.c]=11;if(firstTo.r===0&&piece===2)nb[firstTo.r][firstTo.c]=22;next.board=nb;next.chain={path:best.path,caps:best.caps,finalBoard:best.finalBoard,step:1};}else{next.board=best.finalBoard;next.turn=s.turn===1?2:1;}}
+  else if(caps.length){const best=caps[Math.floor(RNG()*caps.length)];if(best.path.length>2){const from=best.path[0];const firstTo=best.path[1];const cap=best.caps[0];const nb=clone(s.board);const piece=nb[from.r][from.c];nb[from.r][from.c]=0;nb[cap.r][cap.c]=0;nb[firstTo.r][firstTo.c]=piece;if(firstTo.r===9&&piece===1)nb[firstTo.r][firstTo.c]=11;if(firstTo.r===0&&piece===2)nb[firstTo.r][firstTo.c]=22;next.board=nb;next.chain={path:best.path,caps:best.caps,finalBoard:best.finalBoard,step:1};}else{next.board=best.finalBoard;next.turn=s.turn===1?2:1;}}
   else{const chosen=moves[Math.floor(RNG()*moves.length)];if(chosen){next.board=chosen.board;next.turn=s.turn===1?2:1;}}
   return next;
 }
-
 function WatchInner(){
   const searchParams = useSearchParams();
   const tierParam = (searchParams.get("t") || "bronze").toLowerCase();
   const tierList = tierParam==="silver"? SILVER_32 : tierParam==="gold"? GOLD_32 : BRONZE_32;
   const tierName = tierParam==="silver"? "SILVER" : tierParam==="gold"? "GOLD" : "BRONZE";
-  // === ADDED PARAMS FOR JOIN FLOW ===
-  const meParam = searchParams.get("me") || "";
-  const vsParam = searchParams.get("vs") || "";
-  const nextParam = searchParams.get("next") || "";
   const canvasRef=useRef<HTMLCanvasElement>(null);
   const [info,setInfo]=useState<any>(null);
   const stateRef=useRef<any>(null);
   const rngRef=useRef<any>(null);
   const audioRef=useRef<AudioContext|null>(null);
   const lastWinnerRef=useRef<string>("");
-  // === ADDED STATES FOR HUMAN TIMER & QUEUE ===
-  const [humanTimer, setHumanTimer]=useState(4);
-  const [isWarning, setIsWarning]=useState(false);
-  const [queueInfo, setQueueInfo]=useState<any[]>([]);
-  const [statusMsg, setStatusMsg]=useState("");
-
   useEffect(()=>{
     const RNG=mulberry32(tierName==="SILVER"? 223456 : tierName==="GOLD"? 323456 : 123456); rngRef.current=RNG;
     const SAVE_KEY=`tourney_continuous_v5_${tierName}`;
     const nowTicks=Math.floor(Date.now()/4000);
-
     let st:any=null;
     try{
       const saved=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
@@ -83,46 +62,15 @@ function WatchInner(){
         for(let i=0;i<toSim;i++){ st=simulateOne(st,RNG); }
       }
     }catch{}
-
     if(!st){
       const sh=shuffleFisher(tierList,RNG);
-      st={bracket:sh.slice(0,32),p1:sh[0],p2:sh[1],board:newBoard(),turn:1,roundIdx:0,matchInRound:0,roundWinners:[],chain:null,finalCelebration:false, tierList: tierList, tierName: tierName};
+      st={bracket:sh.slice(0,32),p1:sh[0],p2:sh[1],board:newBoard(),turn:RNG()>0.5?1:2,roundIdx:0,matchInRound:0,roundWinners:[],chain:null,finalCelebration:false, tierList: tierList, tierName: tierName};
       const globalMove = nowTicks % 5000;
       for(let i=0;i<globalMove;i++) st=simulateOne(st,RNG);
     } else {
       st.tierList = tierList; st.tierName = tierName;
-      // === ADDED: BOT ALWAYS FIRST ===
-      st.turn = 1;
     }
-
-    // === ADDED: INJECT HUMAN IF COMING FROM JOIN ===
-    if(meParam){
-      st.isHumanMatch = true;
-      st.humanName = meParam;
-      st.p1 = meParam; // human as P1
-      st.p2 = vsParam || tierList[1];
-      st.turn = 1; // bot first
-      // ensure human in queue for display
-      const q = JSON.parse(localStorage.getItem(`queue_${tierParam}`)||"[]");
-      setQueueInfo(q);
-      setStatusMsg(`You are Player #${q.findIndex((p:any)=>p.nickname===meParam)+1||1} of 32 - You are NEXT vs ${st.p2}. Bot plays first. 4s + 4s warning.`);
-    } else {
-      // watcher - load queue
-      const q = JSON.parse(localStorage.getItem(`queue_${tierParam}`)||"[]");
-      setQueueInfo(q);
-      if(q.length>0){
-        st.isHumanMatch = true;
-        st.humanName = q[0].nickname;
-        // if current bots only, show next human as upcoming
-        if(nextParam==="1"){
-          st.p1 = q[0].nickname;
-          st.p2 = tierList[Math.floor(RNG()*tierList.length)];
-        }
-      }
-    }
-
     stateRef.current=st;
-
     const speak=(text:string)=>{ try{ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); u.volume=1.0; u.rate=0.82; u.pitch=1.1; speechSynthesis.speak(u);}catch{} };
     const play=(type:'move'|'capture'|'win')=>{
       try{
@@ -155,41 +103,10 @@ function WatchInner(){
     };
     tick();
     const iv=setInterval(()=>{ stateRef.current=simulateOne(stateRef.current,rngRef.current); tick(); },4000);
-
-    // === ADDED: 4s + 4s WARNING TIMER FOR HUMAN ===
-    const timerIv=setInterval(()=>{
-      const s=stateRef.current;
-      if(!s) return;
-      // only when it's human turn and human match
-      if(s.isHumanMatch && s.turn===2 && s.p1===s.humanName){
-        setHumanTimer(t=>{
-          if(t>1) return t-1;
-          if(!isWarning){
-            setIsWarning(true);
-            setStatusMsg("⚠️ 4 SEC WARNING! Move or DQ + coin lost");
-            return 4;
-          } else {
-            // DQ
-            setStatusMsg("❌ DQ - No move in 4+4s. Coin lost. Next player...");
-            const q = JSON.parse(localStorage.getItem(`queue_${tierParam}`)||"[]");
-            q.shift();
-            localStorage.setItem(`queue_${tierParam}`, JSON.stringify(q));
-            setQueueInfo(q);
-            setTimeout(()=> window.location.reload(), 2000);
-            return 0;
-          }
-        });
-      } else {
-        setHumanTimer(4);
-        setIsWarning(false);
-      }
-    },1000);
-
     const enableAudio=()=>{ try{ if(!audioRef.current) audioRef.current=new (window.AudioContext||(window as any).webkitAudioContext)(); audioRef.current.resume(); }catch{} };
     document.addEventListener('click',enableAudio); document.addEventListener('touchstart',enableAudio);
-    return()=>{clearInterval(iv); clearInterval(timerIv); document.removeEventListener('click',enableAudio); document.removeEventListener('touchstart',enableAudio);};
+    return()=>{clearInterval(iv); document.removeEventListener('click',enableAudio); document.removeEventListener('touchstart',enableAudio);};
   },[tierParam]);
-
   if(!info) return <div style={{background:"#000",color:"#fff",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>Loading continuous tournament...</div>;
   if(info.finalCelebration){
     const elapsed=Math.floor((Date.now()-info.finalTime)/1000); const remaining=Math.max(0,300-elapsed); const m=Math.floor(remaining/60); const s=remaining%60;
@@ -204,22 +121,11 @@ function WatchInner(){
   const currentRound = ROUND_NAMES[info.roundIdx] || "FINAL";
   const nextRound = info.nextRoundLabel || ROUND_NAMES[info.roundIdx+1] || "FINAL";
   const blackPlayer = info.p1; const redPlayer = info.p2; const turnName = info.turn===1? blackPlayer : redPlayer;
-  const roundLabel = info.roundIdx===0? "R32 Easy" : info.roundIdx===1? "R16 Medium" : info.roundIdx===2? "R8 UNBEATABLE" : currentRound;
   return <div style={{background:"#000",color:"#fff",minHeight:"100vh",padding:10,display:"flex",flexDirection:"column",alignItems:"center"}}>
     <div style={{width:"100%",maxWidth:560}}>
-      <div style={{color:"#ff3b3b",fontSize:12,fontWeight:700}}>◎ LIVE {info.tierName} 24/7 · {roundLabel} · Tap once for 🔊 fade sound</div>
-      <h2 style={{margin:"8px 0 4px",fontSize:16}}>{blackPlayer} <span style={{background:"#111",color:"#fff",padding:"2px 6px",borderRadius:4,fontSize:10}}>BLACK BOT FIRST</span> vs {redPlayer} <span style={{background:"#c1272d",color:"#fff",padding:"2px 6px",borderRadius:4,fontSize:10}}>RED {info.isHumanMatch?"HUMAN":"BOT"}</span></h2>
-      <div style={{fontSize:11,opacity:0.7,marginBottom:6}}>Turn: {turnName} — {info.turn===1?'Bot plays first':'Human turn 4s + 4s warning → DQ'} · Continuous even when closed</div>
-      {/* === ADDED: HUMAN TIMER UI === */}
-      {info.isHumanMatch && (
-        <div style={{background: isWarning?"#ff0000":"#222", borderRadius:10, padding:10, marginBottom:8, textAlign:"center"}}>
-          <div style={{fontSize:11}}>{info.turn===2 && info.p1===info.humanName? "YOUR TIME" : "BOT TIME"} {isWarning?"- WARNING":""}</div>
-          <div style={{fontSize:22, fontWeight:900}}>{info.turn===2 && info.p1===info.humanName? `${humanTimer}s` : "●●●"}</div>
-          <div style={{fontSize:10, opacity:0.7}}>{info.turn===2? (isWarning?"Move in 4s or DQ + coin lost":"4s to move"): "Bot playing first always"}</div>
-        </div>
-      )}
-      {statusMsg && <div style={{background:"#fff", color:"#000", borderRadius:8, padding:8, fontSize:12, fontWeight:700, marginBottom:8}}>{statusMsg}</div>}
-      {queueInfo.length>0 && <div style={{background:"#111", borderRadius:8, padding:8, fontSize:11, marginBottom:8}}>Queue {queueInfo.length}/32 • You are Player #{queueInfo.findIndex((p:any)=>p.nickname===meParam)+1 || 1} of 32 • {info.isHumanMatch? `NEXT vs ${info.p2}` : "Watching"} • Humans prioritized first set • R8 unbeatable - human must lose</div>}
+      <div style={{color:"#ff3b3b",fontSize:12,fontWeight:700}}>◎ LIVE {info.tierName} 24/7 · {currentRound} · Tap once for 🔊 fade sound</div>
+      <h2 style={{margin:"8px 0 4px",fontSize:16}}>{blackPlayer} <span style={{background:"#111",color:"#fff",padding:"2px 6px",borderRadius:4,fontSize:10}}>BLACK</span> vs {redPlayer} <span style={{background:"#c1272d",color:"#fff",padding:"2px 6px",borderRadius:4,fontSize:10}}>RED</span></h2>
+      <div style={{fontSize:11,opacity:0.7,marginBottom:6}}>Turn: {turnName} — {info.turn===1?'Black pieces':'Red pieces'} · Continuous even when closed</div>
       <canvas ref={canvasRef} style={{width:"100%",aspectRatio:"1/1",background:"#3d2814",borderRadius:16,border:"4px solid #5a3e2b",display:"block"}} />
       <div style={{marginTop:12,background:"#111",border:"1px solid #222",borderRadius:10,padding:10}}>
         <div style={{fontSize:12,fontWeight:700,color:"#ffcc00"}}>➤ {currentRound} → Winners to {nextRound} (wipes after round)</div>
@@ -232,7 +138,6 @@ function WatchInner(){
     </div>
   </div>;
 }
-
 import { Suspense } from "react";
 export default function Watch(){
   return <Suspense fallback={<div style={{background:"#000",color:"#fff",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>Loading...</div>}><WatchInner/></Suspense>
