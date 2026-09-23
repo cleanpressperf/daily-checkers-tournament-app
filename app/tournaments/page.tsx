@@ -1,67 +1,85 @@
-'use client'
-import Link from 'next/link'
-import { useEffect, useState } from 'react'
-import { ArrowRight, CircleDollarSign, Eye, Users } from 'lucide-react'
-import { createClient } from '@supabase/supabase-js'
+"use client";
+import { useState } from "react";
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key')
+const TOURNAMENTS = [
+  {
+    id: "bronze",
+    name: "BRONZE",
+    sub: "Daily Hustle",
+    entry: 50,
+    prize: 500,
+    color: "#cd7f32",
+    watch: "/watch?t=bronze",
+    players: "32/32",
+    desc: "For starters • Quick win"
+  },
+  {
+    id: "silver",
+    name: "SILVER",
+    sub: "Student Clout",
+    entry: 100,
+    prize: 1000,
+    color: "#9ca3af",
+    watch: "/watch?t=silver",
+    players: "32/32",
+    desc: "Most popular • Campus fav"
+  },
+  {
+    id: "gold",
+    name: "GOLD",
+    sub: "Campus Boss",
+    entry: 200,
+    prize: 2500,
+    color: "#facc15",
+    watch: "/watch?t=gold",
+    players: "32/32",
+    desc: "Big brag • Status win"
+  },
+];
 
-function Coins({ children }: { children: React.ReactNode }) {
-  return <span className="inline-flex items-center gap-1 font-semibold"><CircleDollarSign className="size-4 text-[#d4a900]" />{children}</span>
-}
-
-function Card({t}: {t:any}) {
-  const pct = Math.round((t.joined / t.max_players) * 100)
+export default function Home() {
   return (
-    <article className="rounded-[24px] bg-[#f3f3f3] p-5 text-black">
-      <div className="flex justify-between items-center">
-        <p className="text-[11px] uppercase tracking-[0.2em] opacity-50">{t.name} TOURNAMENT</p>
-        <span className="rounded-full bg-black/10 px-3 py-1 text-[11px] font-bold">🔴 {t.status.toUpperCase()}</span>
+    <div style={{background:"#0a0a0a", minHeight:"100vh", color:"#fff", padding:16}}>
+      <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20}}>
+        <h1 style={{fontSize:20, fontWeight:900, letterSpacing:1}}>CHECKERS<span style={{color:"#facc15"}}>ARENA</span></h1>
+        <a href="/buy" style={{background:"#fff", color:"#000", padding:"8px 14px", borderRadius:20, fontSize:12, fontWeight:800, textDecoration:"none"}}>💰 Buy Coins</a>
       </div>
-      <h3 className="mt-3 text-[28px] font-bold">Win <Coins>{t.prize.toLocaleString()}</Coins></h3>
-      <div className="mt-5 flex justify-between text-sm">
-        <div><p className="opacity-50">Entry</p><p className="flex items-center gap-1 font-bold text-[18px]"><CircleDollarSign className="size-4"/>{t.entry}</p></div>
-        <div className="text-right"><p className="flex items-center justify-end gap-1 opacity-60"><Users className="size-4"/>{t.joined}/{t.max_players}</p><div className="mt-2 h-2 w-24 rounded-full bg-black/10"><div className="h-2 rounded-full bg-black" style={{width:`${pct}%`}}></div></div></div>
+      <div style={{background:"#111", border:"1px solid #222", borderRadius:12, padding:10, marginBottom:16, fontSize:12, textAlign:"center"}}>
+        ◎ <span style={{color:"#22c55e"}}>LIVE NOW</span> • 3 Tournaments running 24/7 • Bots auto-filled • Tap eye to watch
       </div>
-      <div className="mt-5 flex gap-2">
-        <Link href="/" className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-black py-3.5 text-sm font-semibold text-white">Join now <ArrowRight className="size-4"/></Link>
-        <Link href="/play/demo-match" className="grid size-12 place-items-center rounded-xl bg-black/10"><Eye className="size-5"/></Link>
+      <div style={{display:"grid", gap:14, maxWidth:500, margin:"0 auto"}}>
+        {TOURNAMENTS.map((t)=>(
+          <div key={t.id} style={{background:"#ffffff", color:"#000", borderRadius:18, padding:14, borderLeft:`6px solid ${t.color}`}}>
+            <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
+              <div>
+                <div style={{fontSize:11, fontWeight:800, letterSpacing:1, color:t.color}}>{t.id.toUpperCase()} • {t.players} LIVE</div>
+                <div style={{fontSize:18, fontWeight:900}}>{t.name} <span style={{fontSize:12, fontWeight:600, opacity:0.6}}>{t.sub}</span></div>
+                <div style={{fontSize:11, opacity:0.6, marginTop:2}}>{t.desc}</div>
+              </div>
+              <a href={t.watch} style={{background:"#000", width:42, height:42, borderRadius:12, display:"flex", alignItems:"center", justifyContent:"center", textDecoration:"none", fontSize:20}}>👁️</a>
+            </div>
+            <div style={{display:"flex", gap:8, marginTop:12}}>
+              <div style={{flex:1, background:"#f5f5f5", borderRadius:10, padding:"8px 10px"}}>
+                <div style={{fontSize:10, opacity:0.5}}>ENTRY</div>
+                <div style={{fontWeight:900}}>{t.entry} coins</div>
+                <div style={{fontSize:10}}>≈ ₦{t.entry}</div>
+              </div>
+              <div style={{flex:1, background:"#0a0a0a", color:"#fff", borderRadius:10, padding:"8px 10px"}}>
+                <div style={{fontSize:10, opacity:0.6}}>WIN</div>
+                <div style={{fontWeight:900, color:"#22c55e"}}>₦{t.prize.toLocaleString()}</div>
+                <div style={{fontSize:10, color:"#22c55e"}}>Cash prize</div>
+              </div>
+            </div>
+            <div style={{display:"flex", gap:8, marginTop:10}}>
+              <a href={t.watch} style={{flex:1, background:"#eee", color:"#000", textAlign:"center", padding:"10px", borderRadius:10, fontSize:12, fontWeight:800, textDecoration:"none"}}>👁️ Watch Live</a>
+              <a href="/buy" style={{flex:1.4, background:"#000", color:"#fff", textAlign:"center", padding:"10px", borderRadius:10, fontSize:12, fontWeight:800, textDecoration:"none"}}>Join with {t.entry} coins</a>
+            </div>
+          </div>
+        ))}
       </div>
-    </article>
-  )
-}
-
-export default function TournamentsPage(){
-  const [tours,setTours]=useState<any[]>([
-    { name: 'Bronze', entry: 300, prize: 3000, joined: 32, max_players: 32, status: 'in_progress' },
-    { name: 'Silver', entry: 700, prize: 5000, joined: 32, max_players: 32, status: 'in_progress' },
-    { name: 'Gold', entry: 1000, prize: 15000, joined: 32, max_players: 32, status: 'in_progress' },
-  ])
-
-  useEffect(()=>{
-    void fetch('/api/cron/fill-brackets').catch(() => undefined)
-    void fetch('/api/cron/auto-play').catch(() => undefined)
-    async function load(){
-      const { data } = await supabase.from('tournaments').select('*')
-      if(!data) return
-      const withCounts = await Promise.all(data.map(async (tt:any)=>{
-        const { count } = await supabase.from('tournament_entries').select('*', {count:'exact', head:true}).eq('tournament_id', tt.id)
-        return { name: tt.name, entry: tt.entry_coins, prize: tt.prize_naira, joined: count ?? 0, max_players: tt.max_players, status: tt.status }
-      }))
-      setTours(withCounts.sort((a,b)=>a.entry-b.entry))
-    }
-    load()
-  },[])
-
-  return (
-    <main className="min-h-screen bg-black text-white">
-      <div className="mx-auto max-w-7xl px-5 py-6">
-        <h1 className="text-[32px] font-bold leading-none">Choose your table</h1>
-        <p className="mt-2 text-zinc-400">🔴 LIVE NOW - {tours.reduce((s,t)=>s+t.joined,0)} bots playing</p>
-        <div className="mt-6 grid gap-4">
-          {tours.map(t=><Card key={t.name} t={t}/>)}
-        </div>
+      <div style={{textAlign:"center", fontSize:11, opacity:0.4, marginTop:20}}>
+        18+ only • Practice free • Entry 50 = ₦50 • Rebuy allowed
       </div>
-    </main>
-  )
+    </div>
+  );
 }
