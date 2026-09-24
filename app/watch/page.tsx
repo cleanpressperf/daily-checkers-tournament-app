@@ -44,6 +44,8 @@ function WatchInner(){
   const tierName = tierParam==="silver"? "SILVER" : tierParam==="gold"? "GOLD" : "BRONZE";
   const canvasRef=useRef<HTMLCanvasElement>(null);
   const [info,setInfo]=useState<any>(null);
+  const [live,setLive]=useState<any>(null);
+  const [tourney,setTourney]=useState<any>(null);
   const stateRef=useRef<any>(null);
   const rngRef=useRef<any>(null);
   const audioRef=useRef<AudioContext|null>(null);
@@ -83,16 +85,33 @@ function WatchInner(){
         else if(type==='win'){o.frequency.value=300; g.gain.setValueAtTime(1.0, now); o.frequency.linearRampToValueAtTime(800, now+0.8); g.gain.exponentialRampToValueAtTime(0.001, now+1.5); o.start(now); o.stop(now+1.5);}
       }catch{}
     };
-    const draw=(board:Piece[][])=>{
+    const draw=(board:any)=>{
       const c=canvasRef.current; if(!c) return; const ctx=c.getContext("2d"); if(!ctx) return;
       const rect=c.getBoundingClientRect(); const dpr=window.devicePixelRatio||1;
       c.width=rect.width*dpr; c.height=rect.width*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
       const size=rect.width; const sq=size/10; ctx.clearRect(0,0,size,size);
       for(let r=0;r<10;r++)for(let cc=0;cc<10;cc++){ctx.fillStyle=(r+cc)%2===0?"#f0d9b5":"#b58863";ctx.fillRect(cc*sq,r*sq,sq,sq);}
-      for(let r=0;r<10;r++)for(let cc=0;cc<10;cc++){const p=board[r][cc]; if(!p) continue; const x=cc*sq+sq/2,y=r*sq+sq/2; ctx.beginPath(); ctx.arc(x,y,sq*0.38,0,Math.PI*2); ctx.fillStyle=(p===1||p===11)?"#111":"#c1272d"; ctx.fill(); ctx.lineWidth=(p===11||p===22)?3:1; ctx.strokeStyle=(p===11||p===22)?"gold":"#000"; ctx.stroke();}
+      for(let r=0;r<10;r++)for(let cc=0;cc<10;cc++){
+        const p=board[r][cc]; if(!p) continue;
+        const x=cc*sq+sq/2,y=r*sq+sq/2;
+        ctx.beginPath(); ctx.arc(x,y,sq*0.38,0,Math.PI*2);
+        const isBlack = p===1||p===11||p===3;
+        const isKing = p===11||p===22||p===3||p===4;
+        ctx.fillStyle=isBlack?"#111":"#c1272d"; ctx.fill();
+        ctx.lineWidth=isKing?3:1; ctx.strokeStyle=isKing?"gold":"#000"; ctx.stroke();
+        if(isKing){ctx.fillStyle="gold"; ctx.font=`${sq*0.25}px sans-serif`; ctx.textAlign="center"; ctx.fillText("♔",x,y+4);}
+      }
     };
     const tick=()=>{
-      draw(stateRef.current.board); setInfo({...stateRef.current});
+      if(live && live.live && live.list && live.list.length>0){
+        const cur = live.list[0];
+        draw(cur.board);
+        setInfo({p1:cur.me, p2:cur.vs, turn: cur.turn, roundIdx: tourney?.roundIdx||0, roundWinners: tourney?.roundWinners||[], lastWinner: cur.winner, tierName, isHumanLive:true, status: cur.status, liveCount: live.count, allLive: live.list, liveData: cur});
+        return;
+      }
+      draw(stateRef.current.board);
+      const merged = tourney? {...stateRef.current, bracket: tourney.bracket, roundIdx: tourney.roundIdx, roundWinners: tourney.roundWinners, status: tourney.status, currentMatch: tourney.currentMatch } : {...stateRef.current};
+      setInfo(merged);
       const s=stateRef.current;
       if(s.lastWinner && s.lastWinner!==lastWinnerRef.current){
         lastWinnerRef.current=s.lastWinner;
@@ -102,11 +121,23 @@ function WatchInner(){
       try{ localStorage.setItem(SAVE_KEY, JSON.stringify({state:stateRef.current, ticks:Math.floor(Date.now()/4000)})); }catch{}
     };
     tick();
-    const iv=setInterval(()=>{ stateRef.current=simulateOne(stateRef.current,rngRef.current); tick(); },4000);
+    const iv=setInterval(()=>{ if(!live?.live) stateRef.current=simulateOne(stateRef.current,rngRef.current); tick(); },4000);
+    const fetchLive=async()=>{
+      try{
+        const [tData,lData]=await Promise.all([
+          fetch(`/api/tourney?t=${tierParam}`).then(r=>r.json()).catch(()=>null),
+          fetch(`/api/live?t=${tierParam}`).then(r=>r.json()).catch(()=>null)
+        ]);
+        if(tData) setTourney(tData);
+        if(lData && lData.live) setLive(lData); else setLive(null);
+      }catch{}
+    };
+    fetchLive();
+    const iv2=setInterval(fetchLive,2000);
     const enableAudio=()=>{ try{ if(!audioRef.current) audioRef.current=new (window.AudioContext||(window as any).webkitAudioContext)(); audioRef.current.resume(); }catch{} };
     document.addEventListener('click',enableAudio); document.addEventListener('touchstart',enableAudio);
-    return()=>{clearInterval(iv); document.removeEventListener('click',enableAudio); document.removeEventListener('touchstart',enableAudio);};
-  },[tierParam]);
+    return()=>{clearInterval(iv); clearInterval(iv2); document.removeEventListener('click',enableAudio); document.removeEventListener('touchstart',enableAudio);};
+  },[tierParam, live?.list?.length]);
   if(!info) return <div style={{background:"#000",color:"#fff",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>Loading continuous tournament...</div>;
   if(info.finalCelebration){
     const elapsed=Math.floor((Date.now()-info.finalTime)/1000); const remaining=Math.max(0,300-elapsed); const m=Math.floor(remaining/60); const s=remaining%60;
@@ -118,20 +149,30 @@ function WatchInner(){
       <div style={{marginTop:20,fontSize:11,opacity:0.5}}>24/7 continuous — even when you close the tab</div>
     </div>;
   }
-  const currentRound = ROUND_NAMES[info.roundIdx] || "FINAL";
+  const currentRound = ROUND_NAMES[info.roundIdx] || tourney?.status || "FINAL";
   const nextRound = info.nextRoundLabel || ROUND_NAMES[info.roundIdx+1] || "FINAL";
-  const blackPlayer = info.p1; const redPlayer = info.p2; const turnName = info.turn===1? blackPlayer : redPlayer;
+  const blackPlayer = info.p1; const redPlayer = info.p2; const turnName = info.isHumanLive? (info.turn===1? blackPlayer : redPlayer) : (info.turn===1? blackPlayer : redPlayer);
   return <div style={{background:"#000",color:"#fff",minHeight:"100vh",padding:10,display:"flex",flexDirection:"column",alignItems:"center"}}>
     <div style={{width:"100%",maxWidth:560}}>
-      <div style={{color:"#ff3b3b",fontSize:12,fontWeight:700}}>◎ LIVE {info.tierName} 24/7 · {currentRound} · Tap once for 🔊 fade sound</div>
+      <div style={{color:info.isHumanLive?"#22c55e":"#ff3b3b",fontSize:12,fontWeight:700}}>{info.isHumanLive?`● LIVE HUMAN ${info.tierName} · ${currentRound} · ${info.liveCount>1? `${info.liveCount} GAMES LIVE` : `${info.p1} vs ${info.p2}`}`:`◎ LIVE ${info.tierName} 24/7 · ${currentRound} · Tap once for 🔊`}</div>
       <h2 style={{margin:"8px 0 4px",fontSize:16}}>{blackPlayer} <span style={{background:"#111",color:"#fff",padding:"2px 6px",borderRadius:4,fontSize:10}}>BLACK</span> vs {redPlayer} <span style={{background:"#c1272d",color:"#fff",padding:"2px 6px",borderRadius:4,fontSize:10}}>RED</span></h2>
-      <div style={{fontSize:11,opacity:0.7,marginBottom:6}}>Turn: {turnName} — {info.turn===1?'Black pieces':'Red pieces'} · Continuous even when closed</div>
+      <div style={{fontSize:11,opacity:0.7,marginBottom:6}}>Turn: {turnName} — {info.isHumanLive? info.status : (info.turn===1?'Black pieces':'Red pieces')} · {info.isHumanLive? "REAL HUMAN GAME" : "Continuous even when closed"}</div>
       <canvas ref={canvasRef} style={{width:"100%",aspectRatio:"1/1",background:"#3d2814",borderRadius:16,border:"4px solid #5a3e2b",display:"block"}} />
+      {info.allLive && info.allLive.length>1 && (
+        <div style={{marginTop:10, display:"grid", gridTemplateColumns:"1fr 1fr", gap:6}}>
+          {info.allLive.map((m:any,i:number)=>(
+            <div key={i} style={{background:"#111", border:"1px solid #22c55e", borderRadius:8, padding:6, fontSize:10}}>
+              🔴 LIVE M{(m.matchIdx??i)+1}: {m.me} vs {m.vs} - {m.status} ({m.timer}s)
+            </div>
+          ))}
+        </div>
+      )}
+      {tourney && <div style={{marginTop:8, fontSize:10, opacity:0.6}}>Server: {tourney.currentMatch} | {tourney.bracket.length} players in {tourney.status}</div>}
       <div style={{marginTop:12,background:"#111",border:"1px solid #222",borderRadius:10,padding:10}}>
         <div style={{fontSize:12,fontWeight:700,color:"#ffcc00"}}>➤ {currentRound} → Winners to {nextRound} (wipes after round)</div>
         <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:6}}>
-          {info.roundWinners.length===0? <span style={{fontSize:11,opacity:0.5}}>No winners yet...</span> :
-            info.roundWinners.map((n:string,i:number)=><span key={i} style={{background:"#1f1f1f",border:"1px solid #22c55e",borderRadius:12,padding:"5px 9px",fontSize:11}}>✅ {n} → {nextRound}</span>)}
+          {(tourney?.roundWinners||info.roundWinners).length===0? <span style={{fontSize:11,opacity:0.5}}>No winners yet...</span> :
+            (tourney?.roundWinners||info.roundWinners).map((n:string,i:number)=><span key={i} style={{background:"#1f1f1f",border:"1px solid #22c55e",borderRadius:12,padding:"5px 9px",fontSize:11}}>✅ {n} → {nextRound}</span>)}
         </div>
       </div>
       {info.lastWinner && <div style={{marginTop:10,background:"#0f2a0f",border:"1px solid #22c55e",borderRadius:8,padding:10,fontSize:13,color:"#22c55e"}}>🔊 {info.lastWinner} wins {currentRound}! Proceeds to {nextRound}</div>}
