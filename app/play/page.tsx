@@ -1,11 +1,9 @@
 "use client";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useEffect, useState, useRef } from "react";
-
 const SIZE=10;
 type Cell=0|1|2|3|4;
 type Move = { toR:number, toC:number, capR:number, capC:number, isCap:boolean };
-
 function createBoard(): Cell[][]{
   const b: Cell[][]=Array(SIZE).fill(null).map(()=>Array(SIZE).fill(0));
   for(let r=0;r<4;r++) for(let c=0;c<SIZE;c++) if((r+c)%2===1) b[r][c]=1;
@@ -55,41 +53,35 @@ function hasAnyMove(board:Cell[][], player:1|2){
     }
   } return false;
 }
-
 function PlayInner(){
   const sp=useSearchParams(); const router=useRouter();
   const me=sp.get("me")||"Emani"; const vs=sp.get("vs")||"Isaiah Jesus";
   const tParam=(sp.get("t")||"bronze").toLowerCase(); const tierName=tParam.toUpperCase();
-
-  // ===== FIX: BLOCK JOIN IF NOT ROUND OF 32 =====
   const SAVE_KEY=`tourney_continuous_v5_${tierName}`;
   const paidKey=`paid_next_R32_${tParam}`;
   const [blocked,setBlocked]=useState(false);
-
+  const [checking,setChecking]=useState(true);
+  const [matchIdx,setMatchIdx]=useState<number>(-1);
   useEffect(()=>{
-    try{
-      const saved=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
-      const roundIdx=saved?.state?.roundIdx?? 0;
-      if(roundIdx!==0){
-        const alreadyPaid=localStorage.getItem(paidKey);
-        if(!alreadyPaid){
-          localStorage.setItem(paidKey, JSON.stringify({time:Date.now()}));
-          // TODO: deduct coin here - your deduct function
+    async function check(){
+      try{
+        const res=await fetch(`/api/tourney?t=${tParam}`).then(r=>r.json());
+        const j=await fetch(`/api/tourney`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tier:tParam,checkJoin:me})}).then(r=>r.json());
+        const idx = res.bracket?.indexOf(me);
+        if(idx>=0) setMatchIdx(Math.floor(idx/2));
+        if(!j.allowed){
+          const alreadyPaid=localStorage.getItem(paidKey);
+          if(!alreadyPaid) localStorage.setItem(paidKey, JSON.stringify({time:Date.now()}));
+          setBlocked(true);
+          alert(`⛔ You didn't win previous round. Tournament is in ${res.status}. Coin saved for next Round of 32.`);
+          setTimeout(()=>{ window.location.href=`/watch?t=${tParam}`; }, 1200);
+          return;
         }
-        setBlocked(true);
-        alert(`⛔ Tournament already in ${["Round of 32","Round of 16","Quarterfinal","Semifinal","FINAL"][roundIdx]}. You can't join now. Coin deducted ONCE for next Round of 32. You will enter FREE when Round of 32 restarts. Going to watch live.`);
-        setTimeout(()=>{ window.location.href=`/watch?t=${tParam}`; }, 1000);
-      }else{
-        const hasFree=localStorage.getItem(paidKey);
-        if(hasFree){
-          // free entry - you paid before when it was past R32
-          localStorage.removeItem(paidKey);
-          localStorage.setItem(`free_entry_used_${tParam}`, Date.now().toString());
-        }
-      }
-    }catch{}
+      }catch{}
+      setChecking(false);
+    }
+    check();
   },[]);
-
   const [board,setBoard]=useState<Cell[][]>(createBoard());
   const [turn,setTurn]=useState<1|2>(2);
   const [sel,setSel]=useState<any>(null);
@@ -98,31 +90,32 @@ function PlayInner(){
   const [status,setStatus]=useState("Your turn");
   const [won,setWon]=useState(false);
   const timerRef=useRef<any>(null);
-
-  function pushLive(b:Cell[][], t:1|2, s:string){
+  function pushLive(b:Cell[][], t:1|2, s:string, w?:string){
     try{
       localStorage.setItem(`live_match_${tParam}`, JSON.stringify({me,vs,board:b,turn:t,status:s,time:Date.now()}));
-      fetch(`/api/live`,{method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({tier:tParam, me, vs, board:b, turn:t, status:s})}).catch(()=>{});
+      fetch(`/api/live`,{method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({tier:tParam, me, vs, board:b, turn:t, status:s, winner:w||null, timer, matchIdx})}).then(async r=>{
+        const j=await r.json();
+        if(j.error==="PAIR_TAKEN"){
+          alert(`⛔ Match ${matchIdx+1} already live by ${j.current}. Go to watch.`);
+          window.location.href=`/watch?t=${tParam}`;
+        }
+      }).catch(()=>{});
     }catch{}
   }
-
-  useEffect(()=>{ if(!blocked) pushLive(board, turn, status); },[board,turn]);
-
+  useEffect(()=>{ if(!blocked &&!checking) pushLive(board, turn, status); },[board,turn]);
   useEffect(()=>{
-    if(blocked) return;
+    if(blocked||checking) return;
     timerRef.current=setInterval(()=>{ setTimer(v=>{ if(v<=1){ if(!won){ alert("Time out! Disqualified."); window.location.href=`/watch?t=${tParam}`; } return 0; } return v-1; }); },1000);
     return ()=>clearInterval(timerRef.current);
-  },[won,tParam,blocked]);
-
+  },[won,tParam,blocked,checking]);
   useEffect(()=>{
-    if(won||blocked) return;
+    if(won||blocked||checking) return;
     const botCount=countPieces(board,1); const humanCount=countPieces(board,2);
     if(botCount===0){ handleWin(); }
     else if(humanCount===0){ alert("You lost!"); window.location.href=`/watch?t=${tParam}`; }
     else if(turn===1 &&!hasAnyMove(board,1)){ handleWin(); }
     else if(turn===2 &&!hasAnyMove(board,2)){ alert("No moves! You lost."); window.location.href=`/watch?t=${tParam}`; }
   },[board,turn]);
-
   function handleWin(){
     setWon(true); clearInterval(timerRef.current);
     try{
@@ -138,12 +131,12 @@ function PlayInner(){
         }
       }
       localStorage.setItem(`qualified_${tParam}`, JSON.stringify({name:me, time:Date.now(), roundIdx:0}));
-      fetch(`/api/live`,{method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({tier:tParam, me, vs, board, turn, status:"WON", winner:me})}).catch(()=>{});
+      fetch(`/api/tourney`,{method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({tier:tParam, winner:me})}).catch(()=>{});
+      pushLive(board, turn, "WON", me);
     }catch{}
     setStatus("🏆 YOU WON! Proceeding...");
-    setTimeout(()=>{ alert(`🏆 ${me} WINS! You proceed to Round of 16. Go to WATCH now. Come back before Round of 16 ends or DQ.`); router.push(`/watch?t=${tParam}`); },1200);
+    setTimeout(()=>{ alert(`🏆 ${me} WINS!`); router.push(`/watch?t=${tParam}`); },1200);
   }
-
   function onSelect(r:number,c:number){
     if(won||blocked||turn!==2) return; const piece=board[r][c]; if(piece===2||piece===4){
       setSel({r,c}); const caps=getCaps(board,r,c,2); const simples=getSimples(board,r,c,2);
@@ -162,13 +155,12 @@ function PlayInner(){
     let simples:any[]=[]; for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(nb[r][c]===1||nb[r][c]===3) getSimples(nb,r,c,1).forEach((m:any)=> simples.push({r,c,...m}));
     if(simples.length>0){ const ch=simples[Math.floor(Math.random()*simples.length)]; nb[ch.toR][ch.toC]=nb[ch.r][ch.c]; nb[ch.r][ch.c]=0; if(ch.toR===SIZE-1 && nb[ch.toR][ch.toC]===1) nb[ch.toR][ch.toC]=3; setBoard(nb); setTurn(2); pushLive(nb,2,"Your turn"); } else { setBoard(nb); }
   }
-
-  if(blocked) return <div style={{background:"#000", minHeight:"100vh", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", textAlign:"center", padding:20}}>Tournament past Round of 32. Taking you to watch... Coin saved for next Round of 32.</div>;
-
+  if(checking) return <div style={{background:"#000", minHeight:"100vh", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center"}}>Checking tournament...</div>;
+  if(blocked) return <div style={{background:"#000", minHeight:"100vh", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", textAlign:"center", padding:20}}>Tournament past your round. Taking you to watch...</div>;
   return (
     <div style={{background:"#0f0f0f", minHeight:"100vh", color:"#fff", padding:8}}>
       <div style={{maxWidth:420, margin:"0 auto"}}>
-        <div style={{display:"flex", justifyContent:"space-between", fontSize:12, fontWeight:800}}><span>{me} vs {vs}</span><span style={{color:timer<10?"#ff3b3b":"#22c55e"}}>{timer}s</span></div>
+        <div style={{display:"flex", justifyContent:"space-between", fontSize:12, fontWeight:800}}><span>{me} vs {vs} {matchIdx>=0?`(M${matchIdx+1})`:""}</span><span style={{color:timer<10?"#ff3b3b":"#22c55e"}}>{timer}s</span></div>
         <div style={{marginTop:6, fontSize:11, color:"#FFD700"}}>{status} • 🔴 LIVE</div>
         <div style={{marginTop:8, display:"grid", gridTemplateColumns:`repeat(${SIZE},1fr)`, gap:0, border:"3px solid #FFD700", borderRadius:8, overflow:"hidden", aspectRatio:"1/1"}}>
           {board.map((row,r)=>row.map((cell,c)=>{
@@ -182,7 +174,7 @@ function PlayInner(){
             </div>;
           }))}
         </div>
-        {won && <div style={{marginTop:10, background:"#22c55e", color:"#000", padding:12, borderRadius:8, textAlign:"center", fontWeight:800}}>🏆 PROCEEDING TO NEXT ROUND...</div>}
+        {won && <div style={{marginTop:10, background:"#22c55e", color:"#000", padding:12, borderRadius:8, textAlign:"center", fontWeight:800}}>🏆 PROCEEDING...</div>}
       </div>
     </div>
   );
