@@ -30,9 +30,9 @@ function getTourney(tier:string){
   const now=Date.now();
   if(now - s.lastUpdate > 15000){
     // @ts-ignore
-    const live=LIVE[tier];
-    const humanLive=live && (Date.now()-live.time < 35000) && live.status!=="WON";
-    if(!humanLive){
+    const liveAll = LIVE[tier];
+    const hasHumanLive = liveAll && Object.keys(liveAll).length>0;
+    if(!hasHumanLive){
       const idx = s.matchInRound*2;
       const a = s.bracket[idx] || "Bot";
       const b = s.bracket[idx+1] || "Bot2";
