@@ -33,6 +33,11 @@ function getTourney(tier:string){
     const liveAll = LIVE[tier];
     const hasHumanLive = liveAll && Object.keys(liveAll).length>0;
     if(!hasHumanLive){
+      // FINAL with 2 players and no winner yet - force new tourney
+      if(s.roundIdx>=4 && s.bracket.length<=2 && s.roundWinners.length===0 && now - s.lastUpdate > 60000){
+        G[tier]={ bracket: genBracket(tier), roundIdx:0, matchInRound:0, roundWinners:[], status:"Round of 32", currentMatch:"New Tournament", lastUpdate:Date.now() };
+        return G[tier];
+      }
       const idx = s.matchInRound*2;
       const a = s.bracket[idx] || "Bot";
       const b = s.bracket[idx+1] || "Bot2";
@@ -59,12 +64,27 @@ function getTourney(tier:string){
 export async function GET(req:Request){
   const {searchParams}=new URL(req.url);
   const tier=(searchParams.get("t")||"bronze").toLowerCase();
+  const reset=searchParams.get("reset");
+  if(reset){
+    // @ts-ignore
+    delete G[tier];
+    // @ts-ignore
+    if(LIVE[tier]) LIVE[tier]={};
+    return NextResponse.json({reset:true, tier});
+  }
   return NextResponse.json(getTourney(tier));
 }
 
 export async function POST(req:Request){
   const body=await req.json();
   const tier=(body.tier||"bronze").toLowerCase();
+  if(body.reset){
+    // @ts-ignore
+    delete G[tier];
+    // @ts-ignore
+    if(LIVE[tier]) LIVE[tier]={};
+    return NextResponse.json({reset:true});
+  }
   const s=getTourney(tier);
   if(body.winner &&!s.roundWinners.includes(body.winner)){
     s.roundWinners.push(body.winner);
@@ -72,6 +92,9 @@ export async function POST(req:Request){
     if(s.matchInRound*2 >= s.bracket.length && s.roundIdx<4){
       s.bracket=[...s.roundWinners]; s.roundWinners=[]; s.roundIdx++; s.matchInRound=0;
       s.status=["Round of 32","Round of 16","Quarterfinal","Semifinal","FINAL"][s.roundIdx];
+    } else if(s.roundIdx>=4 && s.matchInRound*2 >= s.bracket.length){
+      // CHAMPION - reset
+      G[tier]={ bracket: genBracket(tier), roundIdx:0, matchInRound:0, roundWinners:[], status:"Round of 32", currentMatch:"New Tournament", lastUpdate:Date.now() };
     }
     s.lastUpdate=Date.now();
   }
