@@ -1,12 +1,32 @@
-export const BOTS_7 = [
-  { id: 'finn', name: 'Finn Shelby', title: 'Rookie Bait', entry: 200, reward: 350, avatar: '🧢', level: 1 },
-  { id: 'john', name: 'John Shelby', title: 'Street Fighter', entry: 500, reward: 900, avatar: '🔥', level: 2 },
-  { id: 'arthur', name: 'Arthur Shelby', title: 'Mad Dog', entry: 1000, reward: 1800, avatar: '🥊', level: 3 },
-  { id: 'stringer', name: 'Stringer Bell', title: 'The Strategist', entry: 2000, reward: 3800, avatar: '📚', level: 4 },
-  { id: 'avon', name: 'Avon Barksdale', title: 'The King', entry: 5000, reward: 9500, avatar: '👑', level: 5 },
-  { id: 'thomas', name: 'Thomas Shelby', title: 'The Boss', entry: 10000, reward: 18000, avatar: '💼', level: 6 },
-  { id: 'marlo', name: 'Marlo Stanfield', title: 'Final Boss', entry: 20000, reward: 38000, avatar: '☠️', level: 7 },
-];
-export const BOTS = BOTS_7;
-export function getBot(id: string) { return BOTS_7.find(b => b.id === id) || null; }
-export function formatCoins(n: number) { return `${n.toLocaleString()} coins`; }
+export type Bot = {
+  id: string
+  name: string
+  title: string
+  entry: number
+  reward: number
+  avatar: string
+  level: number
+  buyIn: number
+  payout: number
+  tier: string
+}
+
+const definitions = [
+  ['finn', 'Finn', 'Rookie Bait', 200, 350, 'Finn', 1],
+  ['john', 'John', 'Street Fighter', 500, 900, 'John', 2],
+  ['arthur', 'Arthur', 'Mad Dog', 1000, 1800, 'Arthur', 3],
+  ['stringer', 'Stringer', 'The Strategist', 2000, 3800, 'Stringer', 4],
+  ['avon', 'Avon', 'The King', 5000, 9500, 'Avon', 5],
+  ['thomas', 'Thomas', 'The Boss', 10000, 18000, 'Thomas', 6],
+  ['marlo', 'Marlo', 'Final Boss', 20000, 38000, 'Marlo', 7],
+] as const
+
+export const BOTS_7: Bot[] = definitions.map(([id, name, title, entry, reward, avatar, level]) => ({
+  id, name, title, entry, reward, avatar, level, buyIn: entry, payout: reward, tier: title,
+}))
+export const BOTS = BOTS_7
+export const bots = BOTS_7
+export const PLAYER_WIN_RATE = 20
+export const STARTING_BALANCE = 1000
+export function getBot(id: string) { return BOTS_7.find((bot) => bot.id === id) ?? null }
+export function formatCoins(amount: number) { return new Intl.NumberFormat('en-US').format(amount) }

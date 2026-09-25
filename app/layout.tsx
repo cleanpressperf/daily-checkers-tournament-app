@@ -5,23 +5,14 @@ import AppHeader from './components/AppHeader'
 import BackgroundTournamentRunner from './components/BackgroundTournamentRunner'
 
 export const metadata: Metadata = {
-  title: 'Boardroom — Daily Checkers Cash Tournaments',
-  description: 'Play daily International Draughts tournaments for cash prizes. Skill only.',
+  title: 'Daily Checkers | 1vs1 Arena',
+  description: 'Challenge seven bots in the Daily Checkers 1vs1 arena.',
   generator: 'v0.app',
   icons: {
     icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
+      { url: '/icon-light-32x32.png', media: '(prefers-color-scheme: light)' },
+      { url: '/icon-dark-32x32.png', media: '(prefers-color-scheme: dark)' },
+      { url: '/icon.svg', type: 'image/svg+xml' },
     ],
     apple: '/apple-icon.png',
   },
@@ -35,11 +26,7 @@ export const viewport: Viewport = {
   ],
 }
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <body className="antialiased bg-black">
