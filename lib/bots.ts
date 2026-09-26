@@ -7,13 +7,6 @@ export const BOTS_7 = [
   { id: 'thomas', name: 'Thomas Shelby', title: 'The Boss', entry: 10000, reward: 18000, avatar: '💼', level: 6 },
   { id: 'marlo', name: 'Marlo Stanfield', title: 'Final Boss', entry: 20000, reward: 38000, avatar: '☠️', level: 7 },
 ];
-
 export const BOTS = BOTS_7;
-
-export function getBot(id: string) {
-  return BOTS_7.find(b => b.id === id) || null;
-}
-
-export function formatCoins(n: number) {
-  return `${n.toLocaleString()} coins`;
-}
+export function getBot(id: string) { return BOTS_7.find(b => b.id === id) || null; }
+export function formatCoins(n: number) { return `${n.toLocaleString()} coins`; }
