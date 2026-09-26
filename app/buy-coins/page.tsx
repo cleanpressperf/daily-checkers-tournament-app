@@ -6,6 +6,80 @@ import { useState } from 'react'
 import { addCoins, getBalance } from '@/lib/wallet'
 import { formatCoins } from '@/lib/bots'
 
-declare global { interface Window { PaystackPop?: { setup: (config: { key: string; email: string; amount: number; currency: string; ref: string; callback: (response: { reference: string }) => void; onClose: () => void }) => { openIframe: () => void } } } }
-const packs=[500,1000,2500,5000,10000,20000]
-export default function BuyCoinsPage(){const [balance,setBalance]=useState(getBalance());const [message,setMessage]=useState('');async function buy(amount:number){setMessage('Opening secure checkout...');if(!window.PaystackPop){setMessage('Payment checkout is unavailable until Paystack is configured.');return}const ref=`coins_${Date.now()}_${amount}`;window.PaystackPop.setup({key:process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY||'',email:'player@example.com',amount:amount*100,currency:'NGN',ref,callback:async response=>{const result=await fetch('/api/paystack/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reference:response.reference,amount})});if(!result.ok){setMessage('Payment verification failed. No coins were credited.');return}addCoins(amount);setBalance(getBalance());setMessage(`${formatCoins(amount)} coins credited after verification.`)},onClose:()=>setMessage('Checkout closed.')}).openIframe()}return <><Script src="https://js.paystack.co/v1/inline.js" strategy="afterInteractive"/><main className="min-h-screen bg-[#080808] px-5 py-10 text-white"><div className="mx-auto max-w-3xl"><Link href="/arena" className="text-sm text-white/50">Back to Arena</Link><h1 className="mt-10 text-4xl font-black">Buy coins</h1><p className="mt-3 text-white/50">Current balance: {formatCoins(balance)} coins. Payments are verified before credit.</p><div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{packs.map(amount=><button key={amount} onClick={()=>buy(amount)} className="rounded-2xl border border-white/10 bg-[#111] p-6 text-left hover:border-[#d6ff38]"><strong className="text-2xl">{formatCoins(amount)}</strong><span className="mt-2 block text-xs uppercase tracking-widest text-[#d6ff38]">coins · Paystack</span></button>)}</div>{message&&<p role="status" className="mt-8 text-center text-sm text-white/70">{message}</p>}</div></main>}
+declare global {
+  interface Window {
+    PaystackPop?: {
+      setup: (config: {
+        key: string
+        email: string
+        amount: number
+        currency: string
+        ref: string
+        callback: (response: { reference: string }) => void
+        onClose: () => void
+      }) => { openIframe: () => void }
+    }
+  }
+}
+
+const packs = [500, 1000, 2500, 5000, 10000, 20000]
+
+export default function BuyCoinsPage() {
+  const [balance, setBalance] = useState(() => getBalance())
+  const [message, setMessage] = useState('')
+  const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY ?? ''
+
+  async function buy(amount: number) {
+    if (!publicKey || !window.PaystackPop) {
+      setMessage('Payment checkout is unavailable until Paystack is configured.')
+      return
+    }
+
+    setMessage('Opening secure checkout…')
+    const reference = `coins_${Date.now()}_${amount}`
+    window.PaystackPop.setup({
+      key: publicKey,
+      email: 'player@example.com',
+      amount: amount * 100,
+      currency: 'NGN',
+      ref: reference,
+      callback: async (response) => {
+        const verification = await fetch('/api/paystack/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reference: response.reference, amount }),
+        })
+        if (!verification.ok) {
+          setMessage('Payment verification failed. No coins were credited.')
+          return
+        }
+        addCoins(amount)
+        setBalance(getBalance())
+        setMessage(`${formatCoins(amount)} coins credited after verification.`)
+      },
+      onClose: () => setMessage('Checkout closed.'),
+    }).openIframe()
+  }
+
+  return (
+    <>
+      <Script src="https://js.paystack.co/v1/inline.js" strategy="afterInteractive" />
+      <main className="min-h-screen bg-[#080808] px-5 py-10 text-white">
+        <div className="mx-auto max-w-3xl">
+          <Link href="/arena" className="text-sm text-white/50">Back to Arena</Link>
+          <h1 className="mt-10 text-4xl font-black">Buy coins</h1>
+          <p className="mt-3 text-white/50">Current balance: {formatCoins(balance)} coins. Payments are verified before credit.</p>
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {packs.map((amount) => (
+              <button key={amount} onClick={() => buy(amount)} className="rounded-2xl border border-white/10 bg-[#111] p-6 text-left hover:border-[#d6ff38]">
+                <strong className="text-2xl">{formatCoins(amount)}</strong>
+                <span className="mt-2 block text-xs uppercase tracking-widest text-[#d6ff38]">coins · Paystack</span>
+              </button>
+            ))}
+          </div>
+          {message && <p role="status" className="mt-8 text-center text-sm text-white/70">{message}</p>}
+        </div>
+      </main>
+    </>
+  )
+}
