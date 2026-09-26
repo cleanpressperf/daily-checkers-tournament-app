@@ -24,13 +24,10 @@ export default function AppHeader(){
               <button onClick={()=>setOpen(false)} className="text-2xl text-white">✕</button>
             </div>
             <nav className="flex flex-col gap-3">
-              <Link onClick={()=>setOpen(false)} href="/play/practice" className={`rounded-xl px-4 py-4 font-bold flex items-center gap-3 ${isActive('/play/practice')}`}>
+              <Link onClick={()=>setOpen(false)} href="/free" className={`rounded-xl px-4 py-4 font-bold flex items-center gap-3 ${isActive('/free')}`}>
                 <span className="text-xl">🎮</span> Free Practice
               </Link>
-              <Link onClick={()=>setOpen(false)} href="/tournaments" className={`rounded-xl px-4 py-4 font-bold flex items-center gap-3 ${isActive('/tournaments')}`}>
-                <span className="text-xl">🏆</span> Tournaments
-              </Link>
-              <Link onClick={()=>setOpen(false)} href="/buy" className={`rounded-xl px-4 py-4 font-bold flex items-center gap-3 ${isActive('/buy')}`}>
+              <Link onClick={()=>setOpen(false)} href="/buy-coins" className={`rounded-xl px-4 py-4 font-bold flex items-center gap-3 ${isActive('/buy-coins')}`}>
                 <span className="text-xl">🪙</span> Buy Coin
               </Link>
             </nav>
