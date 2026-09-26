@@ -1,19 +1,16 @@
 {
-  "name": "daily-checkers-tournament-app",
+  "name": "my-project",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@12.3.4",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "next start"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
-    "@paystack/inline-js": "^2.25.0",
-    "@supabase/supabase-js": "^2.116.0",
     "@vercel/analytics": "1.6.1",
-    "@vercel/kv": "^1.0.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.16.0",
