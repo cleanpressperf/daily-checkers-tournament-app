@@ -5,9 +5,10 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: Request) {
   try {
     const { reference, amount, coins } = await request.json()
-    if (typeof reference !== 'string' || !Number.isInteger(amount) || amount <= 0 || !Number.isInteger(coins) || coins <= 0) {
-      return NextResponse.json({ error: 'Invalid payment' }, { status: 400 })
+    if (typeof reference !== 'string' || reference.length < 3 || reference.length > 200) {
+      return NextResponse.json({ error: 'Invalid payment reference' }, { status: 400 })
     }
+
     const secret = process.env.PAYSTACK_SECRET_KEY
     if (!secret) return NextResponse.json({ error: 'Payment verification unavailable' }, { status: 500 })
 
@@ -16,8 +17,20 @@ export async function POST(request: Request) {
       cache: 'no-store',
     })
     const data = await response.json()
-    if (!response.ok || !data.status || data.data?.status !== 'success' || data.data?.amount !== amount * 100) {
+    const payment = data.data
+    const verifiedAmount = Number(payment?.amount)
+    const metadataCoins = Number(payment?.metadata?.coins)
+    const requestedAmount = amount === undefined ? undefined : Number(amount)
+    const requestedCoins = coins === undefined ? undefined : Number(coins)
+
+    if (!response.ok || !data.status || payment?.status !== 'success' || !Number.isInteger(verifiedAmount)) {
       return NextResponse.json({ error: 'Payment could not be verified' }, { status: 400 })
+    }
+    if (requestedAmount !== undefined && (!Number.isInteger(requestedAmount) || verifiedAmount !== requestedAmount * 100)) {
+      return NextResponse.json({ error: 'Payment amount mismatch' }, { status: 400 })
+    }
+    if (!Number.isInteger(metadataCoins) || metadataCoins <= 0 || (requestedCoins !== undefined && metadataCoins !== requestedCoins)) {
+      return NextResponse.json({ error: 'Payment coins mismatch' }, { status: 400 })
     }
 
     const accessToken = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
@@ -28,15 +41,15 @@ export async function POST(request: Request) {
       if (userData.user) {
         const { data: wallet } = await admin.from('wallets').select('balance').eq('user_id', userData.user.id).maybeSingle()
         await admin.from('wallets').upsert(
-          { user_id: userData.user.id, balance: Number(wallet?.balance ?? 0) + coins },
+          { user_id: userData.user.id, balance: Number(wallet?.balance ?? 0) + metadataCoins },
           { onConflict: 'user_id' },
         )
       }
     }
 
-    return NextResponse.json({ ok: true, coins, reference })
-  } catch (err) {
-    console.error('[v0] Paystack verify error:', err)
+    return NextResponse.json({ ok: true, coins: metadataCoins, reference })
+  } catch (error) {
+    console.error('[v0] Paystack verify error:', error)
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
 }
