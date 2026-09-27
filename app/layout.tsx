@@ -4,6 +4,7 @@ import './globals.css'
 import AppHeader from './components/AppHeader'
 import BackgroundTournamentRunner from './components/BackgroundTournamentRunner'
 import Header from './components/Header'
+import Script from 'next/script'
 
 export const metadata: Metadata = {
   title: 'Daily Checkers | 1vs1 Arena',
@@ -20,6 +21,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body className="antialiased bg-black">
+        <Script src="https://js.paystack.co/v1/inline.js" strategy="afterInteractive" />
         <AppHeader />
         <Header />
         <BackgroundTournamentRunner />

@@ -1,10 +1,7 @@
 'use client'
 
-import Script from 'next/script'
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
-
-const PAYSTACK_SCRIPT = 'https://js.paystack.co/v1/inline.js'
 
 declare global {
   interface Window {
@@ -26,15 +23,16 @@ type BuyCoinCardProps = { amount: number; coins: number }
 
 export function BuyCoinCard({ amount, coins }: BuyCoinCardProps) {
   const [status, setStatus] = useState('')
-  const [busy, setBusy] = useState(false)
+  const [processingCoins, setProcessingCoins] = useState<number | null>(null)
   const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY
 
   async function startPayment() {
-    if (!publicKey || !window.PaystackPop) {
-      setStatus('Payment checkout is unavailable.')
+    console.log('[v0] Paystack key exists:', Boolean(publicKey))
+    if (typeof window === 'undefined' || !publicKey || !window.PaystackPop) {
+      setStatus('Payment system loading, please wait and try again.')
       return
     }
-    setBusy(true)
+    setProcessingCoins(coins)
     setStatus('')
     
     const { data: sessionData } = await supabase.auth.getSession()
@@ -63,7 +61,7 @@ export function BuyCoinCard({ amount, coins }: BuyCoinCardProps) {
           if (!verification.ok) throw new Error(result.error || 'Verification failed')
           window.location.assign(`/buy-coins/success?coins=${coins}`)
         } catch (err) {
-          setBusy(false)
+          setProcessingCoins(null)
           setStatus(`Payment verification failed. Reference: ${paymentReference}. Screenshot for support.`)
         }
       },
@@ -76,17 +74,16 @@ export function BuyCoinCard({ amount, coins }: BuyCoinCardProps) {
 
   return (
     <>
-      <Script src={PAYSTACK_SCRIPT} strategy="afterInteractive" />
       <div className="rounded-2xl border border-white/10 bg-[#111] p-6 transition hover:border-[#d6ff38]/50">
         <div className="text-center">
           <strong className="text-4xl font-black text-white">{coins.toLocaleString()}</strong>
           <button
             type="button"
             onClick={startPayment}
-            disabled={busy}
+            disabled={processingCoins !== null}
             className="mt-4 w-full rounded-xl bg-[#d6ff38] py-3 text-sm font-black text-black disabled:cursor-wait disabled:opacity-60"
           >
-            {busy ? 'Processing...' : 'Buy Now'}
+            {processingCoins === coins ? 'Processing...' : 'Buy Now'}
           </button>
           {status && <p className="mt-3 text-xs text-white/50">{status}</p>}
         </div>
