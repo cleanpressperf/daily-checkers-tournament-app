@@ -46,23 +46,22 @@ function BuyCoinsContent() {
   const [restoring, setRestoring] = useState(false)
   const [restoreMessage, setRestoreMessage] = useState('')
 
-  async function handleRestore() {
+  async function handleRestore(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     setRestoring(true)
     setRestoreMessage('')
     try {
       const cookieMatch = document.cookie.match(/(?:^|; )guest_id=([^;]+)/)
       const guestId = localStorage.getItem('guestId') || (cookieMatch?.[1] ? decodeURIComponent(cookieMatch[1]) : '')
-      if (!guestId) throw new Error('No guest wallet found on this device')
-
       const response = await fetch('/api/restore', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ guestId }),
+        body: JSON.stringify({ input: restoreInput.trim(), guestId }),
       })
       const data = await response.json()
       if (!response.ok || !data.success) throw new Error(data.error || 'Could not restore coins')
       localStorage.setItem('coins', String(data.coins))
-      setRestoreMessage(`Restored ${Number(data.coins || 0).toLocaleString()} coins.`)
+      setRestoreMessage(`Restored ${Number(data.restored || data.coins || 0).toLocaleString()} coins.`)
       setRestoreInput('')
     } catch (error) {
       setRestoreMessage(error instanceof Error ? error.message : 'Could not restore coins')
