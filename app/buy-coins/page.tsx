@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useState } from 'react'
 import { BuyCoinCard } from '@/components/BuyCoinCard'
 
-const packs = [500, 1000, 2500, 5000, 10000, 20000]
+const packs = [100, 500, 1000, 2500, 5000, 10000, 20000]
 
 function PaymentStatus() {
   const searchParams = useSearchParams()
@@ -52,6 +52,19 @@ function BuyCoinsContent() {
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {packs.map((amount) => <BuyCoinCard key={amount} amount={amount} coins={amount} />)}
         </div>
+        <section className="mt-8 rounded-2xl border border-white/10 bg-[#111] p-5">
+          <h2 className="font-bold">Restore your coins</h2>
+          <p className="mt-2 text-sm text-white/50">
+            Verified purchases are linked to this browser and restored automatically after checkout.
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-4 rounded-xl border border-white/15 px-4 py-2 text-sm font-bold text-white hover:border-[#d6ff38]"
+          >
+            Restore balance
+          </button>
+        </section>
       </div>
     </main>
   )
