@@ -4,6 +4,14 @@ import { useState } from 'react'
 
 type BuyCoinCardProps = { amount: number; coins: number }
 
+function getGuestId() {
+  const match = document.cookie.match(/(?:^|; )guest_id=([^;]+)/)
+  if (match?.[1]) return decodeURIComponent(match[1])
+  const id = crypto.randomUUID()
+  document.cookie = `guest_id=${encodeURIComponent(id)}; Max-Age=31536000; Path=/; SameSite=Lax`
+  return id
+}
+
 export function BuyCoinCard({ amount, coins }: BuyCoinCardProps) {
   const [status, setStatus] = useState('')
   const [processing, setProcessing] = useState(false)
@@ -12,16 +20,15 @@ export function BuyCoinCard({ amount, coins }: BuyCoinCardProps) {
     setProcessing(true)
     setStatus('')
     try {
-      const email = `player${Date.now()}@cleanpressperf.name.ng`
+      const guestId = getGuestId()
+      const email = `player-${guestId}@cleanpressperf.name.ng`
       const response = await fetch('/api/paystack/initialize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, amount, coins }),
+        body: JSON.stringify({ email, guestId, amount, coins }),
       })
       const data = await response.json()
-      if (!response.ok || !data.authorization_url) {
-        throw new Error(data.message || 'Could not initialize payment')
-      }
+      if (!response.ok || !data.authorization_url) throw new Error(data.message || 'Could not initialize payment')
       window.location.assign(data.authorization_url)
     } catch (error) {
       setProcessing(false)
@@ -34,12 +41,7 @@ export function BuyCoinCard({ amount, coins }: BuyCoinCardProps) {
       <div className="text-center">
         <strong className="text-4xl font-black text-white">{coins.toLocaleString()}</strong>
         <p className="mt-2 text-sm text-white/45">N{amount.toLocaleString()}</p>
-        <button
-          type="button"
-          onClick={handleBuy}
-          disabled={processing}
-          className="mt-4 w-full rounded-xl bg-[#d6ff38] py-3 text-sm font-black text-black disabled:cursor-wait disabled:opacity-60"
-        >
+        <button type="button" onClick={handleBuy} disabled={processing} className="mt-4 w-full rounded-xl bg-[#d6ff38] py-3 text-sm font-black text-black disabled:cursor-wait disabled:opacity-60">
           {processing ? 'Redirecting...' : 'Buy Now'}
         </button>
         {status && <p role="alert" className="mt-3 text-xs text-red-300">{status}</p>}

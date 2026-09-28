@@ -20,6 +20,8 @@ export async function POST(request: Request) {
     const payment = data.data
     const verifiedAmount = Number(payment?.amount)
     const metadataCoins = Number(payment?.metadata?.coins)
+    const metadataGuestId = typeof payment?.metadata?.guestId === 'string' ? payment.metadata.guestId : ''
+    const metadataEmail = typeof payment?.customer?.email === 'string' ? payment.customer.email : ''
     const requestedAmount = amount === undefined ? undefined : Number(amount)
     const requestedCoins = coins === undefined ? undefined : Number(coins)
 
@@ -40,11 +42,20 @@ export async function POST(request: Request) {
       const { data: userData } = await admin.auth.getUser(accessToken)
       if (userData.user) {
         const { data: wallet } = await admin.from('wallets').select('balance').eq('user_id', userData.user.id).maybeSingle()
-        await admin.from('wallets').upsert(
-          { user_id: userData.user.id, balance: Number(wallet?.balance ?? 0) + metadataCoins },
-          { onConflict: 'user_id' },
-        )
+        await admin.from('wallets').upsert({ user_id: userData.user.id, balance: Number(wallet?.balance ?? 0) + metadataCoins }, { onConflict: 'user_id' })
       }
+    }
+
+    if (!metadataGuestId || !metadataEmail) return NextResponse.json({ error: 'Payment identity missing' }, { status: 400 })
+    const { createClient } = await import('@supabase/supabase-js')
+    const admin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const { data: existing } = await admin.from('transactions').select('status,coins').eq('reference', reference).maybeSingle()
+    if (!existing) {
+      const { error: transactionError } = await admin.from('transactions').insert({ reference, guest_id: metadataGuestId, email: metadataEmail, amount: verifiedAmount, coins: metadataCoins, status: 'success' })
+      if (transactionError) return NextResponse.json({ error: 'Could not record payment' }, { status: 500 })
+      const { data: wallet } = await admin.from('guest_wallets').select('coins').eq('id', metadataGuestId).maybeSingle()
+      const { error: walletError } = await admin.from('guest_wallets').upsert({ id: metadataGuestId, email: metadataEmail, coins: Number(wallet?.coins ?? 0) + metadataCoins, updated_at: new Date().toISOString() }, { onConflict: 'id' })
+      if (walletError) return NextResponse.json({ error: 'Could not credit wallet' }, { status: 500 })
     }
 
     return NextResponse.json({ ok: true, coins: metadataCoins, reference })

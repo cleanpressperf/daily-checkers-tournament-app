@@ -6,11 +6,12 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     const email = typeof body.email === 'string' ? body.email.trim() : ''
+    const guestId = typeof body.guestId === 'string' ? body.guestId.trim() : ''
     const amount = Number(body.amount)
     const coins = Number(body.coins)
     const secret = process.env.PAYSTACK_SECRET_KEY
 
-    if (!email || !email.includes('@') || !Number.isInteger(amount) || amount <= 0 || !Number.isInteger(coins) || coins <= 0) {
+    if (!guestId || guestId.length > 100 || !email || !email.includes('@') || !Number.isInteger(amount) || amount <= 0 || !Number.isInteger(coins) || coins <= 0) {
       return NextResponse.json({ message: 'Invalid payment details' }, { status: 400 })
     }
     if (!secret) return NextResponse.json({ message: 'Payment service unavailable' }, { status: 500 })
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
         amount: amount * 100,
         currency: 'NGN',
         callback_url: 'https://cleanpressperf.name.ng/buy-coins?verify=true',
-        metadata: { coins },
+        metadata: { coins, guestId },
       }),
       cache: 'no-store',
     })
