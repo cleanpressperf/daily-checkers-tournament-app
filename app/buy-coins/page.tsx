@@ -17,13 +17,16 @@ function PaymentStatus() {
     let cancelled = false
     async function verifyPayment() {
       try {
+        const cookieGuestId = document.cookie.match(/(?:^|; )guest_id=([^;]+)/)?.[1] || ''
+        const guestId = localStorage.getItem('guestId') || (cookieGuestId ? decodeURIComponent(cookieGuestId) : '')
         const response = await fetch('/api/paystack/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reference }),
+          body: JSON.stringify({ reference, guestId }),
         })
         const data = await response.json()
-        if (!response.ok) throw new Error(data.error || 'Payment verification failed')
+        if (!response.ok || !data.success) throw new Error(data.error || 'Payment verification failed')
+        localStorage.setItem('coins', String(data.coins))
         if (!cancelled) window.location.assign(`/buy-coins/success?coins=${data.coins}`)
       } catch (error) {
         if (!cancelled) setMessage(error instanceof Error ? error.message : 'Payment verification failed')
@@ -34,42 +37,10 @@ function PaymentStatus() {
   }, [reference])
 
   if (!reference) return null
-  return (
-    <div className="mt-6 rounded-xl border border-[#d6ff38]/30 bg-[#d6ff38]/10 p-4 text-sm text-[#d6ff38]">
-      {message || 'Verifying your payment...'}
-    </div>
-  )
+  return <div className="mt-6 rounded-xl border border-[#d6ff38]/30 bg-[#d6ff38]/10 p-4 text-sm text-[#d6ff38]">{message || 'Verifying your payment...'}</div>
 }
 
 function BuyCoinsContent() {
-  const [restoreInput, setRestoreInput] = useState('')
-  const [restoring, setRestoring] = useState(false)
-  const [restoreMessage, setRestoreMessage] = useState('')
-
-  async function handleRestore(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setRestoring(true)
-    setRestoreMessage('')
-    try {
-      const cookieMatch = document.cookie.match(/(?:^|; )guest_id=([^;]+)/)
-      const guestId = localStorage.getItem('guestId') || (cookieMatch?.[1] ? decodeURIComponent(cookieMatch[1]) : '')
-      const response = await fetch('/api/restore', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: restoreInput.trim(), guestId }),
-      })
-      const data = await response.json()
-      if (!response.ok || !data.success) throw new Error(data.error || 'Could not restore coins')
-      localStorage.setItem('coins', String(data.coins))
-      setRestoreMessage(`Restored ${Number(data.restored || data.coins || 0).toLocaleString()} coins.`)
-      setRestoreInput('')
-    } catch (error) {
-      setRestoreMessage(error instanceof Error ? error.message : 'Could not restore coins')
-    } finally {
-      setRestoring(false)
-    }
-  }
-
   return (
     <main className="min-h-screen bg-[#080808] px-5 py-10 text-white">
       <div className="mx-auto max-w-3xl">
@@ -79,28 +50,6 @@ function BuyCoinsContent() {
         <PaymentStatus />
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {packs.map((amount) => <BuyCoinCard key={amount} amount={amount} coins={amount} />)}
-        </div>
-        <div className="mx-auto mt-12 max-w-md border-t border-white/10 pt-8">
-          <h3 className="text-lg font-bold">Lost coins? Restore</h3>
-          <p className="mb-3 mt-2 text-sm text-white/50">Enter email used to pay or Paystack reference</p>
-          <div className="flex gap-2">
-            <input
-              value={restoreInput}
-              onChange={(event) => setRestoreInput(event.target.value)}
-              placeholder="email@example.com or ref_xxx"
-              aria-label="Email or Paystack reference"
-              className="min-w-0 flex-1 rounded-lg border border-white/15 bg-[#111] px-3 py-2 text-white outline-none focus:border-[#d6ff38]"
-            />
-            <button
-              type="button"
-              onClick={handleRestore}
-              disabled={restoring}
-              className="rounded-lg bg-white px-4 py-2 font-bold text-black disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {restoring ? '...' : 'Restore'}
-            </button>
-          </div>
-          {restoreMessage && <p className="mt-3 text-sm text-white/60">{restoreMessage}</p>}
         </div>
       </div>
     </main>

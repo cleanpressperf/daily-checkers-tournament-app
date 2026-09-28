@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
   try {
-    const { reference, amount, coins } = await request.json()
+    const { reference, amount, coins, guestId } = await request.json()
     if (typeof reference !== 'string' || reference.length < 3 || reference.length > 200) {
       return NextResponse.json({ error: 'Invalid payment reference' }, { status: 400 })
     }
@@ -21,7 +21,9 @@ export async function POST(request: Request) {
     const verifiedAmount = Number(payment?.amount)
     const metadataCoins = Number(payment?.metadata?.coins)
     const metadataGuestId = typeof payment?.metadata?.guestId === 'string' ? payment.metadata.guestId : ''
+    const verifiedGuestId = metadataGuestId || (typeof guestId === 'string' ? guestId : '')
     const metadataEmail = typeof payment?.customer?.email === 'string' ? payment.customer.email : ''
+    const verifiedEmail = metadataEmail || (verifiedGuestId ? `player-${verifiedGuestId}@cleanpressperf.name.ng` : '')
     const requestedAmount = amount === undefined ? undefined : Number(amount)
     const requestedCoins = coins === undefined ? undefined : Number(coins)
 
@@ -46,19 +48,19 @@ export async function POST(request: Request) {
       }
     }
 
-    if (!metadataGuestId || !metadataEmail) return NextResponse.json({ error: 'Payment identity missing' }, { status: 400 })
+    if (!verifiedGuestId || !verifiedEmail) return NextResponse.json({ success: false, error: 'Payment identity missing' }, { status: 400 })
     const { createClient } = await import('@supabase/supabase-js')
     const admin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const { data: existing } = await admin.from('transactions').select('status,coins').eq('reference', reference).maybeSingle()
     if (!existing) {
-      const { error: transactionError } = await admin.from('transactions').insert({ reference, guest_id: metadataGuestId, email: metadataEmail, amount: verifiedAmount, coins: metadataCoins, status: 'success' })
+      const { error: transactionError } = await admin.from('transactions').insert({ reference, guest_id: verifiedGuestId, email: verifiedEmail, amount: verifiedAmount, coins: metadataCoins, status: 'success' })
       if (transactionError) return NextResponse.json({ error: 'Could not record payment' }, { status: 500 })
-      const { data: wallet } = await admin.from('guest_wallets').select('coins').eq('id', metadataGuestId).maybeSingle()
-      const { error: walletError } = await admin.from('guest_wallets').upsert({ id: metadataGuestId, email: metadataEmail, coins: Number(wallet?.coins ?? 0) + metadataCoins, updated_at: new Date().toISOString() }, { onConflict: 'id' })
+      const { data: wallet } = await admin.from('guest_wallets').select('coins').eq('id', verifiedGuestId).maybeSingle()
+      const { error: walletError } = await admin.from('guest_wallets').upsert({ id: verifiedGuestId, email: verifiedEmail, coins: Number(wallet?.coins ?? 0) + metadataCoins, updated_at: new Date().toISOString() }, { onConflict: 'id' })
       if (walletError) return NextResponse.json({ error: 'Could not credit wallet' }, { status: 500 })
     }
 
-    return NextResponse.json({ ok: true, coins: metadataCoins, reference })
+    return NextResponse.json({ success: true, ok: true, coins: metadataCoins, reference })
   } catch (error) {
     console.error('[v0] Paystack verify error:', error)
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
