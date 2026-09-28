@@ -42,6 +42,36 @@ function PaymentStatus() {
 }
 
 function BuyCoinsContent() {
+  const [restoreInput, setRestoreInput] = useState('')
+  const [restoring, setRestoring] = useState(false)
+  const [restoreMessage, setRestoreMessage] = useState('')
+
+  async function handleRestore() {
+    const value = restoreInput.trim()
+    if (!value) {
+      setRestoreMessage('Enter the email used to pay or a Paystack reference.')
+      return
+    }
+
+    setRestoring(true)
+    setRestoreMessage('')
+    try {
+      const response = await fetch('/api/paystack/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reference: value }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Could not restore coins')
+      setRestoreMessage(`Restored ${Number(data.coins || 0).toLocaleString()} coins.`)
+      setRestoreInput('')
+    } catch (error) {
+      setRestoreMessage(error instanceof Error ? error.message : 'Could not restore coins')
+    } finally {
+      setRestoring(false)
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#080808] px-5 py-10 text-white">
       <div className="mx-auto max-w-3xl">
@@ -52,19 +82,28 @@ function BuyCoinsContent() {
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {packs.map((amount) => <BuyCoinCard key={amount} amount={amount} coins={amount} />)}
         </div>
-        <section className="mt-8 rounded-2xl border border-white/10 bg-[#111] p-5">
-          <h2 className="font-bold">Restore your coins</h2>
-          <p className="mt-2 text-sm text-white/50">
-            Verified purchases are linked to this browser and restored automatically after checkout.
-          </p>
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="mt-4 rounded-xl border border-white/15 px-4 py-2 text-sm font-bold text-white hover:border-[#d6ff38]"
-          >
-            Restore balance
-          </button>
-        </section>
+        <div className="mx-auto mt-12 max-w-md border-t border-white/10 pt-8">
+          <h3 className="text-lg font-bold">Lost coins? Restore</h3>
+          <p className="mb-3 mt-2 text-sm text-white/50">Enter email used to pay or Paystack reference</p>
+          <div className="flex gap-2">
+            <input
+              value={restoreInput}
+              onChange={(event) => setRestoreInput(event.target.value)}
+              placeholder="email@example.com or ref_xxx"
+              aria-label="Email or Paystack reference"
+              className="min-w-0 flex-1 rounded-lg border border-white/15 bg-[#111] px-3 py-2 text-white outline-none focus:border-[#d6ff38]"
+            />
+            <button
+              type="button"
+              onClick={handleRestore}
+              disabled={restoring}
+              className="rounded-lg bg-white px-4 py-2 font-bold text-black disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {restoring ? '...' : 'Restore'}
+            </button>
+          </div>
+          {restoreMessage && <p className="mt-3 text-sm text-white/60">{restoreMessage}</p>}
+        </div>
       </div>
     </main>
   )
