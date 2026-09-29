@@ -43,7 +43,11 @@ export async function POST(request: Request) {
     const accessToken = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
     if (!verifiedGuestId || !verifiedEmail) return NextResponse.json({ success: false, error: 'Payment identity missing' }, { status: 400 })
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      return NextResponse.json({ error: 'Supabase server credentials are not configured' }, { status: 500 })
+      console.warn('[v0] Using Supabase anon fallback for guest wallet credit.', {
+        hasUrl: Boolean(SUPABASE_URL),
+        hasServiceRole: Boolean(SUPABASE_SERVICE_ROLE_KEY),
+        hasAnonFallback: Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY),
+      })
     }
 
     const admin = createServerSupabaseClient()

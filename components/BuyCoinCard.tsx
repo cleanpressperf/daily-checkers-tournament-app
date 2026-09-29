@@ -4,10 +4,15 @@ import { useState } from 'react'
 
 type BuyCoinCardProps = { amount: number; coins: number }
 
+const GUEST_ID_KEY = 'daily-checkers-guest-id'
+
 function getGuestId() {
+  const stored = window.localStorage.getItem(GUEST_ID_KEY)
+  if (stored) return stored
+
   const match = document.cookie.match(/(?:^|; )guest_id=([^;]+)/)
-  if (match?.[1]) return decodeURIComponent(match[1])
-  const id = crypto.randomUUID()
+  const id = match?.[1] ? decodeURIComponent(match[1]) : crypto.randomUUID()
+  window.localStorage.setItem(GUEST_ID_KEY, id)
   document.cookie = `guest_id=${encodeURIComponent(id)}; Max-Age=31536000; Path=/; SameSite=Lax`
   return id
 }
