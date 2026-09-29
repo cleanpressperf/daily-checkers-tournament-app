@@ -1,6 +1,7 @@
 'use client'
 
-export type Side = 'red' | 'black'
+  
+  export type Side = 'red' | 'black'
 export type Cell = { side: Side; king: boolean } | null
 export type Board = Cell[][]
 export type Coord = [number, number]
