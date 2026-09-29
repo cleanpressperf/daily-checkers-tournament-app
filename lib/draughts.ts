@@ -15,6 +15,7 @@ export const initialBoard=():Piece[]=>{
   return board
 }
 function captureMoves(board:Piece[],from:number):Move[]{
+  console.log('USING NEW ENGINE 124d876')
   const piece=board[from]; if(!piece)return[]; const moves:Move[]=[]
   if(piece.king){
     for(const [dr,dc] of D){let row=piece.row+dr,col=piece.col+dc;let enemy=-1

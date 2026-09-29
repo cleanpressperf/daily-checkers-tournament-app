@@ -1,6 +1,6 @@
 'use client'
 
-import { isKingRow, promoteIfNeeded } from './lib/draughts-engine'
+import { promoteIfNeeded } from './lib/draughts-engine'
 
 export type Side = 'red' | 'black'
 export type Cell = { side: Side; king: boolean } | null
@@ -26,6 +26,7 @@ export function createBoard(): Board {
 }
 
 function captureSequences(board: Board, position: Coord, side: Side, king: boolean, path: Coord[], captures: Coord[], output: Move[]) {
+  console.log('USING NEW ENGINE 124d876')
   const [row, col] = position
   let found = false
 
@@ -59,7 +60,6 @@ function captureSequences(board: Board, position: Coord, side: Side, king: boole
 
     found = true
     const landing: Coord = [landingRow, landingCol]
-    const reachesKingRow = isKingRow(landingRow, side)
     const next = cloneBoard(board)
     next[row][col] = null
     next[jumpedRow][jumpedCol] = null
