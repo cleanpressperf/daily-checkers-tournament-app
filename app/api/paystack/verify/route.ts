@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createServerSupabaseClient, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,27 +38,60 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Payment coins mismatch' }, { status: 400 })
     }
 
+    console.log('ENV CHECK', !!process.env.NEXT_PUBLIC_SUPABASE_URL, !!process.env.SUPABASE_SERVICE_ROLE_KEY, !!process.env.SUPABASE_SERVICE_KEY)
+
     const accessToken = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
-    if (accessToken && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      const { createClient } = await import('@supabase/supabase-js')
-      const admin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+    if (!verifiedGuestId || !verifiedEmail) return NextResponse.json({ success: false, error: 'Payment identity missing' }, { status: 400 })
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json({ error: 'Supabase server credentials are not configured' }, { status: 500 })
+    }
+
+    const admin = createServerSupabaseClient()
+    if (accessToken) {
       const { data: userData } = await admin.auth.getUser(accessToken)
       if (userData.user) {
         const { data: wallet } = await admin.from('wallets').select('balance').eq('user_id', userData.user.id).maybeSingle()
-        await admin.from('wallets').upsert({ user_id: userData.user.id, balance: Number(wallet?.balance ?? 0) + metadataCoins }, { onConflict: 'user_id' })
+        const { error: userWalletError } = await admin.from('wallets').upsert(
+          { user_id: userData.user.id, balance: Number(wallet?.balance ?? 0) + metadataCoins },
+          { onConflict: 'user_id' },
+        )
+        if (userWalletError) return NextResponse.json({ error: 'Could not credit wallet' }, { status: 500 })
       }
     }
 
-    if (!verifiedGuestId || !verifiedEmail) return NextResponse.json({ success: false, error: 'Payment identity missing' }, { status: 400 })
-    const { createClient } = await import('@supabase/supabase-js')
-    const admin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { data: existing } = await admin.from('transactions').select('status,coins').eq('reference', reference).maybeSingle()
+    const { data: existing, error: transactionLookupError } = await admin
+      .from('transactions')
+      .select('status,coins')
+      .eq('reference', reference)
+      .maybeSingle()
+    if (transactionLookupError) return NextResponse.json({ error: 'Could not check payment record' }, { status: 500 })
+
     if (!existing) {
-      const { error: transactionError } = await admin.from('transactions').insert({ reference, guest_id: verifiedGuestId, email: verifiedEmail, amount: verifiedAmount, coins: metadataCoins, status: 'success' })
+      const { error: transactionError } = await admin.from('transactions').insert({
+        reference,
+        guest_id: verifiedGuestId,
+        email: verifiedEmail,
+        amount: verifiedAmount,
+        coins: metadataCoins,
+        status: 'success',
+      })
       if (transactionError) return NextResponse.json({ error: 'Could not record payment' }, { status: 500 })
+
       const { data: wallet } = await admin.from('guest_wallets').select('coins').eq('id', verifiedGuestId).maybeSingle()
-      const { error: walletError } = await admin.from('guest_wallets').upsert({ id: verifiedGuestId, email: verifiedEmail, coins: Number(wallet?.coins ?? 0) + metadataCoins, updated_at: new Date().toISOString() }, { onConflict: 'id' })
+      const nextBalance = Number(wallet?.coins ?? 0) + metadataCoins
+      const { error: walletError } = await admin.from('guest_wallets').upsert(
+        { id: verifiedGuestId, email: verifiedEmail, coins: nextBalance, updated_at: new Date().toISOString() },
+        { onConflict: 'id' },
+      )
       if (walletError) return NextResponse.json({ error: 'Could not credit wallet' }, { status: 500 })
+
+      const { data: confirmedWallet, error: confirmationError } = await admin
+        .from('guest_wallets')
+        .select('coins')
+        .eq('id', verifiedGuestId)
+        .single()
+      if (confirmationError || !confirmedWallet) return NextResponse.json({ error: 'Could not confirm wallet credit' }, { status: 500 })
+      return NextResponse.json({ success: true, ok: true, coins: confirmedWallet.coins, reference })
     }
 
     return NextResponse.json({ success: true, ok: true, coins: metadataCoins, reference })
