@@ -1,10 +1,11 @@
 'use client'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { applyMove, getLegalMoves, initialBoard, indexAt, botMove, type Move, type Piece, type Side } from '../../lib/draughts'
+import { applyMove, getLegalMoves, initialBoard, indexAt, botMove, type Difficulty, type Move, type Piece, type Side } from '../../lib/draughts'
 
 const levels = ['Easy','Medium','Hard'] as const
-type Level = typeof levels[number]
+ type Level = typeof levels[number]
+ const difficultyFor = (level: Level): Difficulty => level.toLowerCase() as Difficulty
 
 export default function PracticePage(){
   const [level,setLevel]=useState<Level>('Medium')
@@ -46,7 +47,7 @@ export default function PracticePage(){
     async function runBotTurn() {
       await delay(1000)
       if (cancelled) return
-      const mv = botMove(board, level)
+      const mv = botMove(board, difficultyFor(level))
       if(!mv || getLegalMoves(board,'black').length===0){ setStatus('You win! - black has no moves'); return }
       const nxt = applyMove(board, mv)
       if (cancelled) return

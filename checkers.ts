@@ -1,7 +1,8 @@
 'use client'
 
-  
-  export type Side = 'red' | 'black'
+import { isKingRow, promoteIfNeeded } from './lib/draughts-engine'
+
+export type Side = 'red' | 'black'
 export type Cell = { side: Side; king: boolean } | null
 export type Board = Cell[][]
 export type Coord = [number, number]
@@ -58,12 +59,12 @@ function captureSequences(board: Board, position: Coord, side: Side, king: boole
 
     found = true
     const landing: Coord = [landingRow, landingCol]
-    const promotes = landingRow === (side === 'red' ? 0 : SIZE - 1)
+    const reachesKingRow = isKingRow(landingRow, side)
     const next = cloneBoard(board)
     next[row][col] = null
     next[jumpedRow][jumpedCol] = null
-    next[landingRow][landingCol] = { side, king: king || promotes }
-    captureSequences(next, landing, side, king || promotes, [...path, landing], [...captures, [jumpedRow, jumpedCol]], output)
+    next[landingRow][landingCol] = { side, king }
+    captureSequences(next, landing, side, king, [...path, landing], [...captures, [jumpedRow, jumpedCol]], output)
   }
 
   if (!found && captures.length) {
@@ -105,7 +106,13 @@ export function applyMove(board: Board, move: Move): Board {
   if (!piece) return next
   next[from[0]][from[1]] = null
   move.captures.forEach(([row, col]) => { next[row][col] = null })
-  next[to[0]][to[1]] = { ...piece, king: piece.king || move.promotes }
+  const promoted = promoteIfNeeded(
+    { row: to[0], col: to[1], side: piece.side, king: piece.king },
+    to[0],
+    move.captures.length > 0,
+    true,
+  )
+  next[to[0]][to[1]] = { ...piece, king: promoted.piece.king }
   return next
 }
 

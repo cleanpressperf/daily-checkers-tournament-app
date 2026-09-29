@@ -1,10 +1,10 @@
-import type { Piece } from './draughts'
+export type PromotionPiece = { row: number; col: number; side: 'black' | 'white' | 'red'; king: boolean }
 
-export const isKingRow = (row: number, side: Piece['side']) =>
-  (side === 'black' && row === 9) || (side === 'white' && row === 0)
+export const isKingRow = (row: number, side: PromotionPiece['side']) =>
+  (side === 'black' && row === 9) || (side === 'white' && row === 0) || (side === 'red' && row === 0)
 
-export function promoteIfNeeded(
-  piece: Piece,
+export function promoteIfNeeded<T extends PromotionPiece>(
+  piece: T,
   toRow: number,
   isCapture: boolean,
   isFinalLanding: boolean,

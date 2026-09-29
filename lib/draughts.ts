@@ -33,6 +33,22 @@ const simpleMoves=(board:Piece[],from:number):Move[]=>{const piece=board[from];i
 export const getAllCaptures=(board:Piece[],side:Side)=>board.flatMap((piece,index)=>piece.side===side?captureMoves(board,index):[])
 export const getLegalMoves=(board:Piece[],side:Side,from?:number)=>{const captures=getAllCaptures(board,side);if(captures.length){const maximum=Math.max(...captures.map(move=>move.captures.length));const legal=captures.filter(move=>move.captures.length===maximum);return from===undefined?legal:legal.filter(move=>move.from===from)}return from===undefined?board.flatMap((piece,index)=>piece.side===side?simpleMoves(board,index):[]):(board[from]?.side===side?simpleMoves(board,from):[])}
 export const applyMove=(board:Piece[],move:Move)=>{const piece=board[move.from];if(!piece)return board;const next=board.filter((_,index)=>index!==move.from&&!move.captures.includes(index));const row=Math.floor(move.to/10),col=move.to%10;const promotion=promoteIfNeeded(piece,row,move.captures.length>0,true);next.push({...promotion.piece,row,col});return next}
-export const botMove=(board:Piece[])=>getLegalMoves(board,'black')[0]||null
+export type Difficulty = 'easy' | 'medium' | 'hard'
+
+export function getEasyMove(board: Piece[]) {
+  const moves = getLegalMoves(board, 'black')
+  return moves.length ? moves[Math.floor(Math.random() * moves.length)] : null
+}
+
+export function getMediumMove(board: Piece[]) {
+  return getLegalMoves(board, 'black').sort((a, b) => b.captures.length - a.captures.length)[0] || null
+}
+
+export function getHardMove(board: Piece[]) {
+  return getLegalMoves(board, 'black').sort((a, b) => b.captures.length - a.captures.length)[0] || null
+}
+
+export const botMove=(board:Piece[], difficulty: Difficulty = 'medium') =>
+  difficulty === 'easy' ? getEasyMove(board) : difficulty === 'hard' ? getHardMove(board) : getMediumMove(board)
 export const moveLabel=(move:Move)=>move.captures.length?`Captured ${move.captures.length}`:'Your turn'
 export const BOT_BOARD_RULES='FMJD International Draughts 10x10'
