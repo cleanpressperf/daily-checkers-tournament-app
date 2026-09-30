@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { supabase } from '@/lib/supabaseClient'
 
 type BuyCoinCardProps = { amount: number; coins: number }
 
@@ -26,7 +27,9 @@ export function BuyCoinCard({ amount, coins }: BuyCoinCardProps) {
     setStatus('')
     try {
       const guestId = getGuestId()
-      const email = `player-${guestId}@cleanpressperf.name.ng`
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Please sign in before buying coins')
+      const email = user.email || `player-${guestId}@cleanpressperf.name.ng`
       const response = await fetch('/api/paystack/initialize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useState } from 'react'
 import { BuyCoinCard } from '@/components/BuyCoinCard'
+import { supabase } from '@/lib/supabaseClient'
 
 const packs = [100, 500, 1000, 2500, 5000, 10000, 20000]
 
@@ -17,12 +18,12 @@ function PaymentStatus() {
     let cancelled = false
     async function verifyPayment() {
       try {
-        const cookieGuestId = document.cookie.match(/(?:^|; )guest_id=([^;]+)/)?.[1] || ''
-        const guestId = localStorage.getItem('guestId') || (cookieGuestId ? decodeURIComponent(cookieGuestId) : '')
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) throw new Error('Please sign in to verify this payment')
         const response = await fetch('/api/paystack/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reference, guestId }),
+          body: JSON.stringify({ reference, userId: user.id }),
         })
         const data = await response.json()
         if (!response.ok || !data.success) throw new Error(data.error || 'Payment verification failed')
