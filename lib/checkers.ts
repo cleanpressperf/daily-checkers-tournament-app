@@ -57,12 +57,18 @@ function captureSequences(board: Board, position: Coord, side: Side, king: boole
 
     found = true
     const landing: Coord = [landingRow, landingCol]
-    const promotes = landingRow === (side === 'red' ? 0 : SIZE - 1)
+    const reachesKingRow = landingRow === (side === 'red' ? 0 : SIZE - 1)
+    const nextPath = [...path, landing]
+    const nextCaptures = [...captures, [jumpedRow, jumpedCol] as Coord]
+    if (reachesKingRow) {
+      output.push({ path: nextPath, captures: nextCaptures, promotes: true })
+      continue
+    }
     const next = cloneBoard(board)
     next[row][col] = null
     next[jumpedRow][jumpedCol] = null
-    next[landingRow][landingCol] = { side, king: king || promotes }
-    captureSequences(next, landing, side, king || promotes, [...path, landing], [...captures, [jumpedRow, jumpedCol]], output)
+    next[landingRow][landingCol] = { side, king: false }
+    captureSequences(next, landing, side, false, nextPath, nextCaptures, output)
   }
 
   if (!found && captures.length) {

@@ -45,7 +45,7 @@ export default function PracticePage(){
     let cancelled = false
 
     async function runBotTurn() {
-      console.log('BOT DELAY 1S')
+      console.log('BOT DELAY 1S ACTIVE')
       await delay(1000)
       if (cancelled) return
       const mv = botMove(board, difficultyFor(level))

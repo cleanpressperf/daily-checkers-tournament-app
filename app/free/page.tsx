@@ -20,7 +20,11 @@ export default function FreePage() {
       const next = applyMove(board, chosen); setBoard(next); setSelected(null); logCounts(next, 'black')
       const botMove = chooseMove(next, 'black', levels[level].depth, levels[level].mistake)
       if (!botMove) { setMessage('You win.'); return }
-      window.setTimeout(() => { const after = applyMove(next, botMove); setBoard(after); setTurn('red'); logCounts(after, 'red'); setMessage(winner(after, 'red') === 'red' ? 'You win.' : 'Your turn') }, 280)
+      window.setTimeout(() => {
+        console.log('BOT DELAY 1S ACTIVE')
+        const after = applyMove(next, botMove)
+        setBoard(after); setTurn('red'); logCounts(after, 'red'); setMessage(winner(after, 'red') === 'red' ? 'You win.' : 'Your turn')
+      }, 1000)
       return
     }
     if (board[r][c]?.side === 'red') setSelected([r, c])
