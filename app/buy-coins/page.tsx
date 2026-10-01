@@ -10,7 +10,7 @@ const packs = [100, 500, 1000, 2500, 5000, 10000, 20000]
 
 function PaymentStatus() {
   const searchParams = useSearchParams()
-  const reference = searchParams.get('reference')
+  const reference = searchParams.get('reference') || searchParams.get('trxref')
   const [message, setMessage] = useState('')
 
   useEffect(() => {
@@ -20,9 +20,13 @@ function PaymentStatus() {
       try {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) throw new Error('Please sign in to verify this payment')
+        const { data: sessionData } = await supabase.auth.getSession()
         const response = await fetch('/api/paystack/verify', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(sessionData.session?.access_token ? { Authorization: `Bearer ${sessionData.session.access_token}` } : {}),
+          },
           body: JSON.stringify({ reference, userId: user.id }),
         })
         const data = await response.json()

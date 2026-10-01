@@ -41,24 +41,37 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Invalid coin amount' }, { status: 400 })
     }
 
+    const authHeader = req.headers.get('authorization')
+    const accessToken = authHeader?.replace(/^Bearer\s+/i, '')
+    if (!accessToken) return Response.json({ error: 'Authenticated session required' }, { status: 401 })
+    const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(accessToken)
+    if (authError || authData.user?.id !== userId) {
+      return Response.json({ error: 'Authenticated user does not match payment account' }, { status: 403 })
+    }
+
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('coins')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
     if (profileError && profileError.code !== 'PGRST116') {
       console.error('Supabase profile lookup error', profileError)
       return Response.json({ error: profileError.message }, { status: 500 })
     }
 
     const newCoins = Number(profile?.coins || 0) + purchasedCoins
-    const { error } = await supabaseAdmin.from('profiles').update({ coins: newCoins }).eq('id', userId)
-    if (error) {
-      console.error('Supabase update error', error)
-      return Response.json({ error: error.message }, { status: 500 })
+    const { data: updatedProfile, error: updateError } = await supabaseAdmin
+      .from('profiles')
+      .update({ coins: newCoins })
+      .eq('id', userId)
+      .select('coins')
+      .single()
+    if (updateError || !updatedProfile) {
+      console.error('[v0] Supabase profile coin update error', updateError)
+      return Response.json({ error: updateError?.message || 'Profile was not found or could not be updated' }, { status: 500 })
     }
 
-    return Response.json({ success: true, newCoins, coins: newCoins, reference })
+    return Response.json({ success: true, newCoins: updatedProfile.coins, coins: updatedProfile.coins, reference })
   } catch (error) {
     console.error('[v0] Paystack verify error', error)
     return Response.json({ error: 'Invalid request' }, { status: 400 })
