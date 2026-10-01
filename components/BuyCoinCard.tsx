@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
 type BuyCoinCardProps = { amount: number; coins: number }
@@ -21,6 +22,11 @@ function getGuestId() {
 export function BuyCoinCard({ amount, coins }: BuyCoinCardProps) {
   const [status, setStatus] = useState('')
   const [processing, setProcessing] = useState(false)
+  const [signedIn, setSignedIn] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setSignedIn(Boolean(data.user)))
+  }, [])
 
   async function handleBuy() {
     setProcessing(true)
@@ -28,7 +34,10 @@ export function BuyCoinCard({ amount, coins }: BuyCoinCardProps) {
     try {
       const guestId = getGuestId()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Please sign in before buying coins')
+      if (!user) {
+        setSignedIn(false)
+        return
+      }
       const email = user.email || `player-${guestId}@cleanpressperf.name.ng`
       const response = await fetch('/api/paystack/initialize', {
         method: 'POST',
@@ -49,9 +58,15 @@ export function BuyCoinCard({ amount, coins }: BuyCoinCardProps) {
       <div className="text-center">
         <strong className="text-4xl font-black text-white">{coins.toLocaleString()}</strong>
         <p className="mt-2 text-sm text-white/45">N{amount.toLocaleString()}</p>
-        <button type="button" onClick={handleBuy} disabled={processing} className="mt-4 w-full rounded-xl bg-[#d6ff38] py-3 text-sm font-black text-black disabled:cursor-wait disabled:opacity-60">
-          {processing ? 'Redirecting...' : 'Buy Now'}
-        </button>
+        {signedIn === false ? (
+          <Link href="/login?redirect=/buy-coins" className="mt-4 block w-full rounded-xl bg-[#d6ff38] py-4 text-center text-base font-black text-black">
+            Sign In to Buy Coins
+          </Link>
+        ) : (
+          <button type="button" onClick={handleBuy} disabled={processing || signedIn === null} className="mt-4 w-full rounded-xl bg-[#d6ff38] py-3 text-sm font-black text-black disabled:cursor-wait disabled:opacity-60">
+            {processing ? 'Redirecting...' : 'Buy Now'}
+          </button>
+        )}
         {status && <p role="alert" className="mt-3 text-xs text-red-300">{status}</p>}
       </div>
     </div>

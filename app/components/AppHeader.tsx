@@ -13,7 +13,7 @@ export default function AppHeader(){
       <header className="flex items-center justify-between px-5 py-4 bg-black text-white sticky top-0 z-50 border-b border-white/10">
         <button onClick={()=>setOpen(true)} className="text-2xl">☰</button>
         <h1 className="font-black tracking-widest text-[#ffd700] text-[13px]">CHECKERS 10×10</h1>
-        <div className="w-6"/>
+        <Link href="/login" className="rounded-lg bg-[#ffd700] px-3 py-2 text-xs font-black text-black">Sign In</Link>
       </header>
 
       {open && (
