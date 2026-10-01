@@ -39,14 +39,15 @@ export function BuyCoinCard({ amount, coins }: BuyCoinCardProps) {
         return
       }
       const email = user.email || `player-${guestId}@cleanpressperf.name.ng`
+      const reference = `coins_${Date.now()}_${crypto.randomUUID()}`
       const response = await fetch('/api/paystack/initialize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, guestId, amount, coins }),
+        body: JSON.stringify({ email, guestId, amount, coins, reference }),
       })
       const data = await response.json()
       if (!response.ok || !data.authorization_url) throw new Error(data.message || 'Could not initialize payment')
-      window.location.assign(data.authorization_url)
+      window.location.href = data.authorization_url
     } catch (error) {
       setProcessing(false)
       setStatus(error instanceof Error ? error.message : 'Could not initialize payment')
