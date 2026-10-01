@@ -12,8 +12,14 @@ export async function POST(req: Request) {
       return Response.json({ error: 'User ID is required' }, { status: 400 })
     }
 
+    const paystackSecret = process.env.PAYSTACK_SECRET_KEY
+    if (!paystackSecret) {
+      console.error('[v0] PAYSTACK_SECRET_KEY is not configured')
+      return Response.json({ error: 'Payment verification unavailable' }, { status: 500 })
+    }
+
     const paystackRes = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
-      headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` },
+      headers: { Authorization: `Bearer ${paystackSecret}` },
       cache: 'no-store',
     })
     const paystackData = await paystackRes.json()
@@ -22,12 +28,13 @@ export async function POST(req: Request) {
     }
 
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const service = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
-    if (!url || !service) {
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const serviceKey = serviceRoleKey || process.env.SUPABASE_SERVICE_KEY
+    if (!url || !serviceKey) {
       console.warn('[v0] Supabase service role key is missing')
       return Response.json({ error: 'Database configuration unavailable' }, { status: 500 })
     }
-    const supabaseAdmin = createClient(url, service, { auth: { autoRefreshToken: false, persistSession: false } })
+    const supabaseAdmin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
 
     const purchasedCoins = Number(coins || paystackData.data.metadata?.coins || 100)
     if (!Number.isInteger(purchasedCoins) || purchasedCoins <= 0) {
