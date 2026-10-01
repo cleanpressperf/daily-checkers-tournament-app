@@ -10,7 +10,8 @@ const packs = [100, 500, 1000, 2500, 5000, 10000, 20000]
 
 function PaymentStatus() {
   const searchParams = useSearchParams()
-  const reference = searchParams.get('reference') || searchParams.get('trxref')
+  const reference = searchParams.get('reference') || searchParams.get('trxref') || searchParams.get('trxRef') || searchParams.get('TrxRef')
+  if (!reference) console.warn('[v0] Paystack callback did not include a payment reference')
   const [message, setMessage] = useState('')
 
   useEffect(() => {
@@ -27,7 +28,7 @@ function PaymentStatus() {
             'Content-Type': 'application/json',
             ...(sessionData.session?.access_token ? { Authorization: `Bearer ${sessionData.session.access_token}` } : {}),
           },
-          body: JSON.stringify({ reference, userId: user.id }),
+          body: JSON.stringify({ reference }),
         })
         const data = await response.json()
         if (!response.ok || !data.success) throw new Error(data.error || 'Payment verification failed')

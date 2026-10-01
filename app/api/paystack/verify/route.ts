@@ -4,12 +4,10 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
   try {
-    const { reference, userId, coins } = await req.json()
+    const { reference } = await req.json()
     if (typeof reference !== 'string' || !reference.trim()) {
+      console.warn('[v0] Paystack verify called without a reference')
       return Response.json({ error: 'Payment reference is required' }, { status: 400 })
-    }
-    if (typeof userId !== 'string' || !userId.trim()) {
-      return Response.json({ error: 'User ID is required' }, { status: 400 })
     }
 
     const paystackSecret = process.env.PAYSTACK_SECRET_KEY
@@ -18,62 +16,87 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Payment verification unavailable' }, { status: 500 })
     }
 
-    const paystackRes = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+    const paystackRes = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference.trim())}`, {
       headers: { Authorization: `Bearer ${paystackSecret}` },
       cache: 'no-store',
     })
     const paystackData = await paystackRes.json()
-    if (!paystackRes.ok || !paystackData.data || paystackData.data.status !== 'success') {
+    const transaction = paystackData?.data
+    if (!paystackRes.ok || !transaction || transaction.status !== 'success') {
       return Response.json({ error: 'Payment not verified' }, { status: 400 })
     }
 
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const email = String(transaction.customer?.email || '').trim().toLowerCase()
+    if (!email || !email.includes('@')) {
+      return Response.json({ error: 'Verified payment email is missing' }, { status: 400 })
+    }
+
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    const serviceKey = serviceRoleKey || process.env.SUPABASE_SERVICE_KEY
-    if (!url || !serviceKey) {
-      console.warn('[v0] Supabase service role key is missing')
+    if (!url || !serviceRoleKey) {
+      console.error('[v0] Supabase URL or SUPABASE_SERVICE_ROLE_KEY is missing')
       return Response.json({ error: 'Database configuration unavailable' }, { status: 500 })
     }
-    const supabaseAdmin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
-
-    const purchasedCoins = Number(coins || paystackData.data.metadata?.coins || 100)
-    if (!Number.isInteger(purchasedCoins) || purchasedCoins <= 0) {
-      return Response.json({ error: 'Invalid coin amount' }, { status: 400 })
-    }
+    const supabaseAdmin = createClient(url, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
 
     const authHeader = req.headers.get('authorization')
     const accessToken = authHeader?.replace(/^Bearer\s+/i, '')
-    if (!accessToken) return Response.json({ error: 'Authenticated session required' }, { status: 401 })
-    const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(accessToken)
-    if (authError || authData.user?.id !== userId) {
-      return Response.json({ error: 'Authenticated user does not match payment account' }, { status: 403 })
+    if (accessToken) {
+      const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(accessToken)
+      const authEmail = authData.user?.email?.trim().toLowerCase()
+      if (authError || !authEmail || authEmail !== email) {
+        return Response.json({ error: 'Payment email does not match the signed-in account' }, { status: 403 })
+      }
     }
 
-    const { data: profile, error: profileError } = await supabaseAdmin
+    const purchasedCoins = Number(transaction.metadata?.coins || 0)
+    if (!Number.isInteger(purchasedCoins) || purchasedCoins <= 0) {
+      return Response.json({ error: 'Invalid coin amount in verified transaction' }, { status: 400 })
+    }
+
+    const { data: profile, error: profileReadError } = await supabaseAdmin
       .from('profiles')
       .select('coins')
-      .eq('id', userId)
+      .eq('email', email)
       .maybeSingle()
-    if (profileError && profileError.code !== 'PGRST116') {
-      console.error('Supabase profile lookup error', profileError)
-      return Response.json({ error: profileError.message }, { status: 500 })
-    }
+    if (profileReadError) return Response.json({ error: profileReadError.message }, { status: 500 })
+    if (!profile) return Response.json({ error: `No profiles row found for ${email}` }, { status: 404 })
 
-    const newCoins = Number(profile?.coins || 0) + purchasedCoins
-    const { data: updatedProfile, error: updateError } = await supabaseAdmin
+    const nextCoins = Number(profile.coins || 0) + purchasedCoins
+    const { data: updatedProfile, error: profileUpdateError } = await supabaseAdmin
       .from('profiles')
-      .update({ coins: newCoins })
-      .eq('id', userId)
-      .select('coins')
+      .update({ coins: nextCoins })
+      .eq('email', email)
+      .select('email, coins')
       .single()
-    if (updateError || !updatedProfile) {
-      console.error('[v0] Supabase profile coin update error', updateError)
-      return Response.json({ error: updateError?.message || 'Profile was not found or could not be updated' }, { status: 500 })
+    if (profileUpdateError || !updatedProfile) {
+      throw new Error(profileUpdateError?.message || 'profiles update affected 0 rows')
     }
 
-    return Response.json({ success: true, newCoins: updatedProfile.coins, coins: updatedProfile.coins, reference })
+    const { data: guestWallet, error: guestReadError } = await supabaseAdmin
+      .from('guest_wallets')
+      .select('coins')
+      .eq('email', email)
+      .maybeSingle()
+    if (guestReadError) return Response.json({ error: guestReadError.message }, { status: 500 })
+    if (!guestWallet) return Response.json({ error: `No guest_wallets row found for ${email}` }, { status: 404 })
+
+    const guestNextCoins = Number(guestWallet.coins || 0) + purchasedCoins
+    const { data: updatedGuestWallet, error: guestUpdateError } = await supabaseAdmin
+      .from('guest_wallets')
+      .update({ coins: guestNextCoins })
+      .eq('email', email)
+      .select('email, coins')
+      .single()
+    if (guestUpdateError || !updatedGuestWallet) {
+      throw new Error(guestUpdateError?.message || 'guest_wallets update affected 0 rows')
+    }
+
+    return Response.json({ success: true, email, coins: updatedProfile.coins, guestCoins: updatedGuestWallet.coins, reference })
   } catch (error) {
     console.error('[v0] Paystack verify error', error)
-    return Response.json({ error: 'Invalid request' }, { status: 400 })
+    return Response.json({ error: error instanceof Error ? error.message : 'Invalid request' }, { status: 500 })
   }
 }
