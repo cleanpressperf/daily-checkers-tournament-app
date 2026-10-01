@@ -15,14 +15,27 @@ export default function LoginPage(){
       if(isSignUp){
         const {error}=await supabase.auth.signUp({email,password})
         if(error) throw error
-        setMsg('Account created! Check email to confirm, then Sign In.')
+        setMsg('Account created! Check your email to confirm, then Sign In.')
         setIsSignUp(false)
       }else{
         const {error}=await supabase.auth.signInWithPassword({email,password})
         if(error) throw error
         setMsg('Signed in! Redirecting...')
-        window.location.href='/'
+        window.location.href='/buy-coins'
       }
+    }catch(e:any){setMsg(e.message)}
+  }
+
+  async function resendConfirmation(){
+    setMsg('Sending confirmation email...')
+    try{
+      const {error}=await supabase.auth.resend({
+        type:'signup',
+        email,
+        options:{emailRedirectTo:`${window.location.origin}/buy-coins`},
+      })
+      if(error) throw error
+      setMsg('Confirmation email sent. Check your inbox.')
     }catch(e:any){setMsg(e.message)}
   }
 
@@ -35,6 +48,7 @@ export default function LoginPage(){
         <input className="mt-3 w-full rounded-xl bg-black border border-white/10 p-3" placeholder="Password" type="password" value={password} onChange={e=>setPassword(e.target.value)}/>
         <button onClick={handleAuth} className="mt-4 w-full rounded-xl bg-white py-3 font-semibold text-black">{isSignUp?'Sign Up':'Sign In'}</button>
         <button onClick={()=>setIsSignUp(!isSignUp)} className="mt-3 w-full text-sm text-zinc-400">{isSignUp?'Already have account? Sign In':'No account? Sign Up'}</button>
+        {!isSignUp && <button onClick={resendConfirmation} className="mt-3 w-full text-sm text-[#d6ff38]">Resend confirmation email</button>}
         {msg&&<p className="mt-4 rounded-lg bg-white/10 p-3 text-sm">{msg}</p>}
         <Link href="/" className="mt-6 block text-center text-sm text-zinc-500">← Back home</Link>
       </div>
