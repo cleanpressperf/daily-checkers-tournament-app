@@ -12,7 +12,7 @@ const packs = [100, 500, 1000, 2500, 5000, 10000, 20000]
 function PaymentStatus() {
   const searchParams = useSearchParams()
   const reference = searchParams.get('reference') || searchParams.get('trxref') || searchParams.get('trxRef') || searchParams.get('TrxRef')
-  if (!reference) console.warn('[v0] Paystack callback did not include a payment reference')
+  if (!reference) console.debug('[v0] No Paystack callback reference on this normal page visit')
   const [message, setMessage] = useState('')
 
   useEffect(() => {
