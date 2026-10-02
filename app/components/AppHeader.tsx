@@ -1,11 +1,48 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { getBalance, setBalance } from '@/lib/wallet'
 
 export default function AppHeader(){
   const [open,setOpen]=useState(false)
+  const [email,setEmail]=useState<string | null>(null)
+  const [balance,setWalletBalance]=useState(0)
   const path=usePathname()
+
+  useEffect(() => {
+    setWalletBalance(getBalance())
+    const sync = () => setWalletBalance(getBalance())
+    window.addEventListener('wallet-change', sync)
+    const loadSession = async () => {
+      const { data } = await supabase.auth.getSession()
+      const user = data.session?.user
+      setEmail(user?.email ?? null)
+      if (data.session?.access_token) {
+        const response = await fetch('/api/wallet', { headers: { Authorization: `Bearer ${data.session.access_token}` } })
+        if (response.ok) {
+          const wallet = await response.json()
+          setBalance(Number(wallet.coins))
+          setWalletBalance(Number(wallet.coins))
+        }
+      }
+    }
+    loadSession()
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setEmail(session?.user?.email ?? null)
+      if (!session) setWalletBalance(getBalance())
+    })
+    return () => {
+      window.removeEventListener('wallet-change', sync)
+      listener.subscription.unsubscribe()
+    }
+  }, [])
+
+  async function handleSignOut() {
+    await supabase.auth.signOut()
+    setEmail(null)
+  }
   const isActive=(p:string)=> path===p? 'bg-[#ffd700] text-black' : 'bg-white/10 text-white'
 
   return (
@@ -13,7 +50,10 @@ export default function AppHeader(){
       <header className="flex items-center justify-between px-5 py-4 bg-black text-white sticky top-0 z-50 border-b border-white/10">
         <button onClick={()=>setOpen(true)} className="text-2xl">☰</button>
         <h1 className="font-black tracking-widest text-[#ffd700] text-[13px]">CHECKERS 10×10</h1>
-        <Link href="/login" className="rounded-lg bg-[#ffd700] px-3 py-2 text-xs font-black text-black">Sign In</Link>
+        <div className="flex items-center gap-2">
+          <span className="hidden text-xs text-white/60 sm:inline">{balance.toLocaleString()}</span>
+          {email ? <button onClick={handleSignOut} className="rounded-lg border border-white/20 px-3 py-2 text-xs font-black text-white">Log Out</button> : <Link href="/login" className="rounded-lg bg-[#ffd700] px-3 py-2 text-xs font-black text-black">Sign In</Link>}
+        </div>
       </header>
 
       {open && (

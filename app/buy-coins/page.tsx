@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useState } from 'react'
 import { BuyCoinCard } from '@/components/BuyCoinCard'
 import { supabase } from '@/lib/supabaseClient'
+import { setBalance } from '@/lib/wallet'
 
 const packs = [100, 500, 1000, 2500, 5000, 10000, 20000]
 
@@ -32,7 +33,7 @@ function PaymentStatus() {
         })
         const data = await response.json()
         if (!response.ok || !data.success) throw new Error(data.error || 'Payment verification failed')
-        localStorage.setItem('coins', String(data.coins))
+        setBalance(Number(data.coins))
         if (!cancelled) window.location.assign(`/buy-coins/success?coins=${data.coins}`)
       } catch (error) {
         if (!cancelled) setMessage(error instanceof Error ? error.message : 'Payment verification failed')
