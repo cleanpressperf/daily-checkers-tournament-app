@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { CircleDollarSign, Trophy, Flame, Crown } from 'lucide-react'
 import Link from 'next/link'
 import Script from 'next/script'
+import { createClient } from '@/utils/supabase/client'
 
 const packs = [
   { price: 50, coins: 50, bonus: 0, label: 'Quick' },
@@ -13,28 +14,61 @@ const packs = [
 ]
 
 export default function BuyPage() {
-  const [balance, setBalance] = useState(100)
+  const [balance, setBalance] = useState(0)
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState<number | null>(null)
+  const [message, setMessage] = useState('')
 
   useEffect(() => {
-    const saved = localStorage.getItem('user_coins')
-    if (saved) setBalance(Number(saved))
-    else {
-      localStorage.setItem('user_coins', '100')
-      setBalance(100)
+    const supabase = createClient()
+    let channel: ReturnType<typeof supabase.channel> | null = null
+
+    async function loadBalance() {
+      if (!email.trim()) {
+        setBalance(0)
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('users_balance')
+        .select('balance')
+        .eq('email', email.trim().toLowerCase())
+        .maybeSingle()
+
+      if (!error) setBalance(data?.balance ?? 0)
     }
-    const savedEmail = localStorage.getItem('boardroom_email')
-    if (savedEmail) setEmail(savedEmail)
-  }, [])
+
+    void loadBalance()
+
+    if (email.trim()) {
+      channel = supabase
+        .channel(`balance-${email.trim().toLowerCase()}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'users_balance',
+            filter: `email=eq.${email.trim().toLowerCase()}`,
+          },
+          (payload) => {
+            const nextBalance = (payload.new as { balance?: number }).balance
+            if (typeof nextBalance === 'number') setBalance(nextBalance)
+          },
+        )
+        .subscribe()
+    }
+
+    return () => {
+      if (channel) void supabase.removeChannel(channel)
+    }
+  }, [email])
 
   function payWithPaystack(pack: typeof packs[0]) {
     if (!email ||!email.includes('@')) {
       alert('Enter your email for Paystack receipt')
       return
     }
-    localStorage.setItem('boardroom_email', email)
-
     // @ts-ignore
     const PaystackPop = (window as any).PaystackPop
     if (!PaystackPop) {
@@ -45,26 +79,42 @@ export default function BuyPage() {
     setLoading(pack.price)
 
     const handler = PaystackPop.setup({
-      key: 'pk_live_6960e1a77fb79df45e086a07cd8fa9e45dd3652a',
+      key: process.env.NEXT_PUBLIC_PAYSTACK_KEY,
       email: email,
       amount: pack.price * 100,
       currency: 'NGN',
       ref: 'BR-' + Date.now() + '-' + Math.floor(Math.random()*1000),
-      callback: function (response: any) {
-        // THIS IS THE FIX — THIS WAS MISSING BEFORE
+      callback: async function (response: any) {
+        const supabase = createClient()
+        const normalizedEmail = email.trim().toLowerCase()
+
         try {
-          const current = Number(localStorage.getItem('user_coins') || '100')
-          const base = current === 0? 100 : current
-          const newBalance = base + pack.coins
+          const { data: current, error: balanceError } = await supabase
+            .from('users_balance')
+            .select('balance')
+            .eq('email', normalizedEmail)
+            .maybeSingle()
 
-          localStorage.setItem('user_coins', String(newBalance))
-          window.dispatchEvent(new Event('coins-updated'))
+          if (balanceError) throw balanceError
+
+          const newBalance = (current?.balance ?? 0) + pack.coins
+          const { error: upsertError } = await supabase
+            .from('users_balance')
+            .upsert({ email: normalizedEmail, balance: newBalance }, { onConflict: 'email' })
+
+          if (upsertError) throw upsertError
+
+          const { error: depositError } = await supabase
+            .from('deposits')
+            .insert({ email: normalizedEmail, amount: pack.coins, reference: response.reference })
+
+          if (depositError && depositError.code !== '23505') throw depositError
+
           setBalance(newBalance)
-
-          alert(`Payment successful! Ref: ${response.reference}\n+${pack.coins} coins added.\nNew balance: ${newBalance}`)
-          window.location.href = '/'
-        } catch(e) {
-          alert('Payment success but error adding coins. Contact support with ref: ' + response.reference)
+          setMessage(`Payment successful. +${pack.coins} coins added.`)
+        } catch (error) {
+          console.error('[v0] Paystack deposit sync failed', error)
+          setMessage(`Payment succeeded, but the balance could not be synced. Reference: ${response.reference}`)
         } finally {
           setLoading(null)
         }
@@ -100,6 +150,7 @@ export default function BuyPage() {
             placeholder="Your email for Paystack receipt"
             className="mt-6 w-full max-w-sm rounded-full border border-white/10 bg-zinc-900 px-5 py-3 text-sm outline-none placeholder:text-zinc-600 focus:border-white/20"
           />
+          {message && <p className="mt-3 text-sm text-zinc-300" role="status">{message}</p>}
         </div>
 
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
